@@ -15,26 +15,13 @@ public:
 
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	
-protected:
-	virtual void BeginPlay() override;
-	
-	// 입력 함수
-	void Move(const FInputActionValue& Value);
-	void Look(const FInputActionValue& Value);
-	void Jump(const FInputActionValue& Value);
-	void StartSprint();
-	void StopSprint();
-	void Shoot();
-	void StartAim();
-	void StopAim();
-	
 	// 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Camera")
 	class UCameraComponent* FirstPersonCamera;
 		
 	// 입력 에셋
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input")
-	class UInputMappingContext* DefaultMappingContext;
+	class UInputMappingContext* InputMappingContext;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input")
 	class UInputAction* MoveAction;
@@ -59,7 +46,20 @@ protected:
 	float WalkSpeed = 600.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Movement")
-	float RunSpeed = 900.f;
+	float SprintSpeed = 900.f;
+	
+protected:
+	virtual void BeginPlay() override;
+	
+	// 입력 함수
+	void InputActionMove(const FInputActionValue& Value);
+	void InputActionLook(const FInputActionValue& Value);
+	void InputActionJump(const FInputActionValue& Value);
+	void StartSprint();
+	void StopSprint();
+	void Shoot();
+	void StartAim();
+	void StopAim();
 	
 };
 	
