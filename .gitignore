@@ -18,7 +18,11 @@ Saved/
 
 .vscode/
 .idea/
+.claude/
 
 # Visual Studio cache
 .vs/
 *.ipch
+
+# 마켓플레이스 에셋 팩 (용량 큼 / LFS 절약) — 각자 Fab에서 프로젝트에 설치
+Content/MWLandscapeAutoMaterial/
