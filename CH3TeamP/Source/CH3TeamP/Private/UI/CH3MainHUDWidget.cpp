@@ -11,7 +11,7 @@
 
 
 
-
+/*
 void UCH3MainHUDWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
@@ -54,3 +54,4 @@ FVector2D UCH3MainHUDWidget::WorldToMinimapPosition(const FVector& WorldLocation
 	return FVector2D(NormalizedX * MinimapImagePixelSize.X, 
 					  NormalizedY * MinimapImagePixelSize.Y);
 }
+*/
