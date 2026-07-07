@@ -41,8 +41,8 @@ protected:
 	UPROPERTY()
 	class UMiniMapWidget* PlayerBlip;
 
-	virtual void NativeConstruct() override;
-	virtual void NativeTick(const FGeometry& MyGeometry, float DeltaTime) override;
+	//virtual void NativeConstruct() override;
+	//virtual void NativeTick(const FGeometry& MyGeometry, float DeltaTime) override;
 
 	FVector2D WorldToMinimapPosition(const FVector& WorldLocation);
 };

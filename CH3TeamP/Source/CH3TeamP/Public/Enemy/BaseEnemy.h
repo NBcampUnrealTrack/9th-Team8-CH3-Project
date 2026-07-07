@@ -38,7 +38,10 @@ protected:
 	float MoveSpeed = 300.f;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
-	float AttackRange = 150.f;
+	float AttackRange = 300.0f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
+	float AttackCooldown = 1.0f;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy|AI")
 	float DetectRange = 600.f;
@@ -61,5 +64,14 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category = "Enemy")
 	void SetEnemyState(EEnemyState NewState);
+	
+	UFUNCTION(BlueprintCallable, Category = "Enemy")
+	EEnemyState GetEnemyState() const;
+	
+	UFUNCTION(BlueprintCallable, Category = "Enemy")
+	float GetAttackRange() const;
+	
+	UFUNCTION(BlueprintCallable, Category = "Enemy")
+	float GetAttackCooldown() const;
 	
 };
