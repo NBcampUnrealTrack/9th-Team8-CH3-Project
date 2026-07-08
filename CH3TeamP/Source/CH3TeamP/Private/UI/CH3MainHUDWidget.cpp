@@ -55,3 +55,4 @@ FVector2D UCH3MainHUDWidget::WorldToMinimapPosition(const FVector& WorldLocation
 					  NormalizedY * MinimapImagePixelSize.Y);
 }
 */
+
