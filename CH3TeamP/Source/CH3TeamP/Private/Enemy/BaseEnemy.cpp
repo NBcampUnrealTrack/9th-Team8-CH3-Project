@@ -1,4 +1,5 @@
 #include "Enemy/BaseEnemy.h"
+#include "Components/HealthComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/Engine.h"
 
@@ -10,30 +11,32 @@ ABaseEnemy::ABaseEnemy()
 void ABaseEnemy::BeginPlay()
 {
 	Super::BeginPlay();
-	
-	// 시작 시 현재 체력을 최대 체력으로 초기화
-	CurrentHealth = MaxHealth;
-	
+
 	// 이동 속도를 CharacterMovement에 적용
 	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed;
 }
 
-void ABaseEnemy::TakeEnemyDamage(float DamageAmount)
+void ABaseEnemy::TakeEnemyDamage(int32 DamageAmount)
 {
 	// 이미 죽은 상태면 더 이상 데미지를 받지 않음
-	if (bIsDead)
+	if (!HealthComponent || HealthComponent->bIsDead)
 	{
 		return;
 	}
 	
 	// 방어력을 반영한 최종 데미지 계산
-	const float FinalDamage = FMath::Max(DamageAmount - Defense, 0.f);
+	const int32 FinalDamage = FMath::Max(0, DamageAmount - (int32)Defense);
 	
-	// 현재 체력 감소
-	CurrentHealth -= FinalDamage;
+	HealthComponent->ApplyDamage(FinalDamage);
+	
+	// 피격 확인용 디버그
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, TEXT("Enemy Hit"));
+	}
 	
 	// 체력이 0 이하가 되면 사망 처리
-	if (CurrentHealth <= 0.f)
+	if (HealthComponent->bIsDead)
 	{
 		Die();
 	}
@@ -41,8 +44,7 @@ void ABaseEnemy::TakeEnemyDamage(float DamageAmount)
 
 void ABaseEnemy::Attack()
 {
-	// 죽은 상태면 공격 불가
-	if (bIsDead)
+	if (!HealthComponent || HealthComponent->bIsDead)
 	{
 		return;
 	}
@@ -57,22 +59,41 @@ void ABaseEnemy::Attack()
 	}
 }
 
-void ABaseEnemy::Die()
+void ABaseEnemy::AttackTarget(AActor* Target)
 {
-	// 이미 죽었으면 중복 사망 처리 방지
-	if (bIsDead)
+	if (!HealthComponent || HealthComponent->bIsDead || !Target)
 	{
 		return;
 	}
 	
-	bIsDead = true;
-	CurrentHealth = 0.f;
+	// 공격 상태 전환
+	Attack();
 	
-	// 사망 상태로 변경
+	// 타겟의 HealthComponent 찾아서 데미지 적용
+	UHealthComponent* TargetHealth = Target->FindComponentByClass<UHealthComponent>();
+	if (TargetHealth)
+	{
+		TargetHealth->ApplyDamage(AttackDamage);
+	}
+}
+
+void ABaseEnemy::Die()
+{
+	if (!HealthComponent || !HealthComponent->bIsDead)
+	{
+		return;
+	}
+	
 	SetEnemyState(EEnemyState::Dead);
 	
-	// 나중에 여기에 사망 애니메이션, 충돌 비활성화
-	// 일정 시간 후 제거 같은 로직 추가할 수 있음
+	// 이동 중지
+	GetCharacterMovement()->DisableMovement();
+	
+	// 사망 확인용 디버그
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Blue, TEXT("Enemy Dead"));
+	}
 }
 
 void ABaseEnemy::SetEnemyState(EEnemyState NewState)

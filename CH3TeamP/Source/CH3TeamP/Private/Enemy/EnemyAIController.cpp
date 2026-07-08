@@ -77,7 +77,7 @@ void AEnemyAIController::Tick(float DeltaTime)
 		
 		if (CurrentTime - LastAttackTime >= EnemyAttackCooldown)
 		{
-			ControlledEnemy->Attack();
+			ControlledEnemy->AttackTarget(TargetPlayer);
 			LastAttackTime = CurrentTime;
 		}
 	}

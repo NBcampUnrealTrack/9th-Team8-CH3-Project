@@ -6,9 +6,7 @@
 #include "Blueprint/UserWidget.h"
 #include "CH3MainHUDWidget.generated.h"
 
-/**
- * 
- */
+
 UCLASS()
 class CH3TEAMP_API UCH3MainHUDWidget : public UUserWidget
 {
@@ -41,14 +39,14 @@ protected:
 	UPROPERTY()
 	class UMiniMapWidget* PlayerBlip;
 
-	//virtual void NativeConstruct() override;
-	//virtual void NativeTick(const FGeometry& MyGeometry, float DeltaTime) override;
+	// virtual void NativeConstruct() override;
+	// virtual void NativeTick(const FGeometry& MyGeometry, float DeltaTime) override;
 
 	FVector2D WorldToMinimapPosition(const FVector& WorldLocation);
 };
 
 
-
+	
 /*HUD에 구현할 것들. 메인메뉴 : MainMenu
 1. 스테이터스
 	1-1) 체력바

@@ -25,11 +25,8 @@ protected:
 	virtual void BeginPlay() override;
 
 protected:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Stats")
-	float MaxHealth = 100.f;
-	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|Stats")
-	float CurrentHealth = 100.f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|Component")
+	UHealthComponent* HealthComponent;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Stats")
 	float Defense = 0.f;
@@ -46,8 +43,8 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy|AI")
 	float DetectRange = 600.f;
 	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|State")
-	bool bIsDead = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
+	int32 AttackDamage = 10;
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|State")
 	EEnemyState EnemyState = EEnemyState::Idle;
@@ -58,6 +55,9 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category = "Enemy")
 	virtual void Attack();
+	
+	UFUNCTION(BlueprintCallable, Category = "Enemy")
+	virtual void AttackTarget(AActor* Target);
 	
 	UFUNCTION(BlueprintCallable, Category = "Enemy")
 	virtual void Die();
