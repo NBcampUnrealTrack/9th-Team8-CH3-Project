@@ -4,6 +4,8 @@
 #include "GameFramework/Character.h"
 #include "BaseEnemy.generated.h"
 
+class UHealthComponent;
+
 UENUM(BlueprintType)
 enum class EEnemyState : uint8
 {
@@ -51,7 +53,7 @@ protected:
 	
 public:
 	UFUNCTION(BlueprintCallable, Category = "Enemy")
-	virtual void TakeEnemyDamage(float DamageAmount);
+	virtual void TakeEnemyDamage(int32 DamageAmount);
 	
 	UFUNCTION(BlueprintCallable, Category = "Enemy")
 	virtual void Attack();
