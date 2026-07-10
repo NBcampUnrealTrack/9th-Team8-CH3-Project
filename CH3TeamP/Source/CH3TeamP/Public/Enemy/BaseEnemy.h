@@ -5,6 +5,7 @@
 #include "BaseEnemy.generated.h"
 
 class UHealthComponent;
+class AActor;
 
 UENUM(BlueprintType)
 enum class EEnemyState : uint8
@@ -48,8 +49,29 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
 	int32 AttackDamage = 10;
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Reward")
+	int32 ExpReward = 10;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Reward")
+	TSubclassOf<AActor> ExpPickupClass;
+	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|State")
 	EEnemyState EnemyState = EEnemyState::Idle;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|HitSlow")
+	bool bUseHitSlow = false;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|HitSlow")
+	float HitSlowMultiplier = 0.5f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|HitSlow")
+	float HitSlowDuration = 0.3f;
+	
+	FTimerHandle HitSlowTimerHandle;
+	
+protected:
+	void ApplyHitSlow();
+	void ResetMoveSpeed();
 	
 public:
 	UFUNCTION(BlueprintCallable, Category = "Enemy")

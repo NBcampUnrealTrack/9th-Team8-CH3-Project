@@ -2,6 +2,9 @@
 #include "Components/HealthComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/Engine.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
+#include "Items/ExpPickup.h"
 
 ABaseEnemy::ABaseEnemy()
 {
@@ -13,6 +16,35 @@ void ABaseEnemy::BeginPlay()
 	Super::BeginPlay();
 
 	// 이동 속도를 CharacterMovement에 적용
+	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed;
+}
+
+void ABaseEnemy::ApplyHitSlow()
+{
+	if (!bUseHitSlow || EnemyState == EEnemyState::Dead)
+	{
+		return;
+	}
+	
+	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed * HitSlowMultiplier;
+	
+	GetWorldTimerManager().ClearTimer(HitSlowTimerHandle);
+	GetWorldTimerManager().SetTimer(
+		HitSlowTimerHandle,
+		this,
+		&ABaseEnemy::ResetMoveSpeed,
+		HitSlowDuration,
+		false
+		);
+}
+
+void ABaseEnemy::ResetMoveSpeed()
+{
+	if (EnemyState == EEnemyState::Dead)
+	{
+		return;
+	}
+	
 	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed;
 }
 
@@ -85,11 +117,29 @@ void ABaseEnemy::Die()
 	}
 	
 	SetEnemyState(EEnemyState::Dead);
-	
-	// 이동 중지
 	GetCharacterMovement()->DisableMovement();
 	
-	// 사망 확인용 디버그
+	if (ExpPickupClass)
+	{
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.Owner = this;
+		
+		const FVector SpawnLocation = GetActorLocation() + FVector(0.f, 0.f, 30.f);
+		const FRotator SpawnRotation = FRotator::ZeroRotator;
+		
+		AActor* SpawnedActor = GetWorld()->SpawnActor<AActor>(
+			ExpPickupClass,
+			SpawnLocation,
+			SpawnRotation,
+			SpawnParams);
+		
+		AExpPickup* ExpPickup = Cast<AExpPickup>(SpawnedActor);
+		if (ExpPickup)
+		{
+			ExpPickup->ExpAmount = ExpReward;
+		}
+	}
+	
 	if (GEngine)
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Blue, TEXT("Enemy Dead"));
