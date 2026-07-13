@@ -33,15 +33,13 @@ enum class EEnemyType : uint8
 	MAX			UMETA(Hidden)
 };
 
-/** 레벨업 시 제시되는 강화(및 힐) 종류. 실제 효과 적용은 전투 로직(김민석) 담당. */
+/** 레벨업 시 제시되는 강화(및 힐) 종류. 실제 효과 적용은 전투 로직 담당. */
 UENUM(BlueprintType)
 enum class EUpgradeType : uint8
 {
 	AttackUp		UMETA(DisplayName = "공격력 증가"),
 	FireRateUp		UMETA(DisplayName = "연사 속도 증가"),
 	MoveSpeedUp		UMETA(DisplayName = "이동 속도 증가"),
-	MaxHealthUp		UMETA(DisplayName = "최대 체력 증가"),
-	CritChanceUp	UMETA(DisplayName = "치명타 확률 증가"),
 	MagazineUp		UMETA(DisplayName = "탄창 증가"),
 	ExplosiveAmmo	UMETA(DisplayName = "폭발탄 획득"),
 	PiercingAmmo	UMETA(DisplayName = "관통탄 획득"),
