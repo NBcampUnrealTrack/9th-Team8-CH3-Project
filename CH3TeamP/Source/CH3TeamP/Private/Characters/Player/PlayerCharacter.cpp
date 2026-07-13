@@ -685,4 +685,5 @@ float APlayerCharacter::GetCurrentDamage() const
 	case EAmmoType::Normal:
 	default:
 		return NormalDamage;
+	}
 }
