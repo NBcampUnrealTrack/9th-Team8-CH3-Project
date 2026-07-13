@@ -4,6 +4,8 @@
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"
 #include "Weapons/WeaponDataAsset.h"
+#include "Camera/CameraComponent.h"
+#include "Types/CombatTypes.h"
 #include "PlayerCharacter.generated.h"
 
 class UCH3StaminaComponent;
@@ -21,18 +23,15 @@ public:
 	// 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Camera")
 	class UCameraComponent* FirstPersonCamera;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Mesh")
+	USkeletalMeshComponent* ThirdPersonMesh;
+	
 		
 	// 입력 에셋
-public:
 	UPROPERTY(EditDefaultsOnly, Category="Input")
 	class UPlayerInputConfigDataAsset* PlayerInputConfig;
-	
-	UPROPERTY(EditAnywhere, Category="Input")
-	class UInputAction* ShootAction;
 
-	UPROPERTY(EditAnywhere, Category="Input")
-	class UInputAction* AimAction;
-	
 	void UpdateMoveSpeed();
 	
 	// 이동 속도
@@ -47,6 +46,7 @@ public:
 	
 	bool bIsSprinting;
 	bool bIsHit;
+	bool bIsAiming = false;
 	
 	// 손에 든 무기 메시 (단일 슬롯, 무기 전환 시 SkeletalMesh 교체)
 	UPROPERTY(VisibleAnywhere, Category="Weapon")
@@ -73,11 +73,32 @@ public:
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Stamina")
 	UCH3StaminaComponent* StaminaComp;
+	
+	UPROPERTY(EditAnywhere, Category="Weapon")
+	int32 MaxAmmo = 30;
+
+	UPROPERTY(VisibleAnywhere, Category="Weapon")
+	int32 CurrentAmmoCount  = 30;
+
+	UPROPERTY(EditAnywhere, Category="Weapon")
+	float ReloadTime = 2.f;
+	
+	UFUNCTION(BlueprintCallable, Category="Damage")
+	void OnDamage(int32 Amount);
+
+	bool bIsReloading = false;
+	
+	FTimerHandle ReloadTimerHandle;
+	
+	float GetCurrentDamage() const;
 
 protected:
 	virtual void BeginPlay() override;
 	
 	virtual void Tick(float DeltaTime) override;
+	
+	UPROPERTY(VisibleAnywhere, Category="Weapon")
+	EAmmoType CurrentAmmoType = EAmmoType::Normal;	
 
 	// 입력 함수
 	void InputActionMove(const FInputActionValue& Value);
@@ -87,10 +108,12 @@ protected:
 	void InputActionUnCrouch(const FInputActionValue& Value);
 	void StartSprint();
 	void StopSprint();
-	void Shoot();
-	void StartAim();
-	void StopAim();
-
+	void FireGun();
+	void StartFire();
+	void StopFire();
+	void Reload(const FInputActionValue& Value);
+	void FinishReload();
+	void ToggleAim();
 	void OnHit();
 	void EndHit();
 	
@@ -102,8 +125,68 @@ protected:
 	// 입력 핸들러
 	void InputActionRiple(const struct FInputActionValue& Value);
 	
-	void FireGun();
 	void InputActionFire(const struct FInputActionValue& Value);
+	
+	// 착지 시각 기록 → 착지 직후 0.2초 점프 잠금
+	virtual void Landed(const FHitResult& Hit) override;
+
+	float LastLandedTime = -10.f;
+	
+	UPROPERTY(EditAnywhere, Category="Weapon|Damage")
+	float NormalDamage = 30.f;
+
+	UPROPERTY(EditAnywhere, Category="Weapon|Damage")
+	float PiercingDamage = 25.f;
+
+	UPROPERTY(EditAnywhere, Category="Weapon|Damage")
+	float ExplosiveDamage = 20.f;
+	
+
+	
+private:
+
+	float StandingCameraHeight;
+	float CrouchCameraHeight = 32.f;
+
+	float TargetCameraHeight = 64.f;
+	float CameraInterpSpeed = 12.f;
+
+	// 기본 시야각
+	UPROPERTY(EditAnywhere, Category="Camera")
+	float DefaultFOV = 90.f;
+
+	// 조준 시 시야각
+	UPROPERTY(EditAnywhere, Category="Camera")
+	float AimFOV = 65.f;
+
+	// 현재 FOV
+	float CurrentFOV;
+
+	// 목표 FOV
+	float TargetFOV;
+
+	// FOV 변경 속도
+	UPROPERTY(EditAnywhere, Category="Camera")
+	float AimInterpSpeed = 15.f;
+	
+	void OnFireAnimation();
+	void OnHitAnimation();
+	void OnDeathAnimation();
+
+	// 테스트용
+	void InputActionTestDamage(const struct FInputActionValue& Value);
+	void InputActionTestDeath(const struct FInputActionValue& Value);
+
+	UPROPERTY(EditAnywhere, Category="Weapon")
+	float FireRate = 8.f;
+
+	FTimerHandle FireTimerHandle;
+	
+	void FireNormal();
+	void FirePiercing();
+	void FireExplosive();
+
+	
 	
 };
 	

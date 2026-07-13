@@ -23,10 +23,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Weapon")
 	USkeletalMesh* Mesh = nullptr;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Weapon")
-	int32 Damage = 30;
-
 	// 무기 메시가 손에 붙을 때 적용할 보정 위치/회전/스케일
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Weapon")
 	FTransform AttachTransform = FTransform::Identity;
+	
+	UPROPERTY(EditAnywhere)
+	float FireInterval = 0.1f;
+	
+
+	
 };
