@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 // 게임 진행 표시/공유 데이터 (담당: 김유탁 / 게임모드)
-// UI(전병규)는 이 GameState의 델리게이트에 바인딩하고, 값은 Getter로 읽습니다.
+// UI(김민석)는 이 GameState의 델리게이트에 바인딩하고, 값은 Getter로 읽습니다.
 // 값 변경은 GameMode(서버 권한)에서만 수행합니다.
 
 #pragma once

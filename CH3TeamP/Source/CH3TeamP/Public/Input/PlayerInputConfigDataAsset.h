@@ -29,10 +29,7 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="Input|Actions")
 	class UInputAction* SprintAction;
-
-	UPROPERTY(EditAnywhere, Category="Input|Actions")
-	class UInputAction* ShootAction;
-
+	
 	UPROPERTY(EditAnywhere, Category="Input|Actions")
 	class UInputAction* AimAction;
 
@@ -42,5 +39,15 @@ public:
 	UPROPERTY(EditAnywhere, Category="Input|Actions")
 	class UInputAction* FireAction;
 	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input|Actions")
+	UInputAction* ReloadAction;
+	
+	UPROPERTY(EditAnywhere, Category="Input|Actions")
+	class UInputAction*  TestDamageAction;
 
-};
+	UPROPERTY(EditAnywhere, Category="Input|Actions")
+	class UInputAction*  TestDeathAction;
+	
+	
+
+};	
