@@ -5,14 +5,13 @@
 //
 // [협업 진입점 요약]  다른 파트는 아래 UFUNCTION 만 호출하면 됩니다.
 //   - 적 AI(성태현)   : NotifyEnemyKilled()      // 몬스터 사망 통지(보스 처치 승리도 이걸로 감지)
-//   - 전투(김민석)     : NotifyPlayerDied()        // 플레이어 사망
+//   - 전투(전병규)     : NotifyPlayerDied()        // 플레이어 사망
 //                       NotifyPlayerLevelUp()      // 레벨업 발생
-//   - UI(전병규)       : ConfirmUpgradeSelection() // 강화 카드 선택 결과
+//   - UI(김민석)       : ConfirmUpgradeSelection() // 강화 카드 선택 결과
 //                       (표시는 ACH3GameState 델리게이트 바인딩)
 //
 // [게임 상태를 즉석에서 바꾸는 치트 콘솔 명령] (~ 콘솔에 입력)
 //   CH3.WinNow / CH3.LoseNow / CH3.SkipWave / CH3.SetWaveTime <초> / CH3.SpawnBoss
-
 #pragma once
 
 #include "CoreMinimal.h"
