@@ -190,10 +190,10 @@ void UCH3MainHUDWidget::SyncMinimapRangeFromCaptureActor()
 }
 
 
-	//체력/ 스태미나를 매 프레임 읽어오기.
+	//체력/ 스태미나/ 총알을 를 매 프레임 읽어오기.
 void UCH3MainHUDWidget::PollPlayerStatus()
 {
-	if (!CachedPlayer)
+	if (!IsValid(CachedPlayer)) //cachedPlayer가 아닌 isvalid인 이유 : 
 	{
 		CachedPlayer = Cast<APlayerCharacter>(GetOwningPlayerPawn());
 		if (!CachedPlayer)
@@ -211,6 +211,24 @@ void UCH3MainHUDWidget::PollPlayerStatus()
 	{
 		StaminaBar->SetPercent(CachedPlayer->StaminaComp->GetStaminaPercent());
 	}
+	
+	
+	
+		// 탄약 폴링.
+		// CurrentAmmoCount / MaxAmmo 둘 다 PlayerCharacter의 public 멤버라 그냥 읽으면 됨.
+		// 값이 직전과 같으면 아무것도 안 함 → 발사/장전 순간에만 텍스트 갱신됨.
+	const int32 NowAmmo = CachedPlayer->CurrentAmmoCount;
+	const int32 NowMaxAmmo = CachedPlayer->MaxAmmo;
+
+	if (NowAmmo != LastPolledAmmo || NowMaxAmmo != LastPolledMaxAmmo)
+	{
+		LastPolledAmmo = NowAmmo;       // 캐시 갱신
+		LastPolledMaxAmmo = NowMaxAmmo;
+
+			// 이미 만들어둔 함수를 그대로 재사용. (델리게이트가 생기면 이 함수만 그대로 바인딩.)
+		HandleAmmoChanged(NowAmmo, NowMaxAmmo);
+	}
+	
 	
 }
 
@@ -458,6 +476,8 @@ void UCH3MainHUDWidget::UpdateCrosshair(float DeltaTime)
 		return;
 	}
 
+	
+	/*기존 코드 - PC없이 OwningPlayer를 받기 위해서 썼던 부분.
 		// 1) 현재 상태로 목표 벌어짐 결정
 		// 정조준(ADS)은 아직 팀원 코드가 없으므로, 그 자리는 주석으로 남겨둠.
 		// 지금은 "달리는 중"만 속도로 직접 판정 가능.
@@ -472,6 +492,37 @@ void UCH3MainHUDWidget::UpdateCrosshair(float DeltaTime)
 		if (PlanarSpeed > RunSpeedThreshold)
 		{
 			TargetSpread = SpreadRunning;
+		}
+	}
+	*/
+	
+		//cachedPlayer가 OwningPlayer를 이곳에서 따로 받지 않아도 되도록 함.
+		//APlayerCharacter* CachedPlayer; 변수를 공유하고 있어서, pollplayer에서 운용됨.
+		// 1) 현재 상태로 목표 벌어짐 결정
+	float TargetSpread = SpreadIdle;
+
+			// [변경] GetOwningPlayerPawn() → PollPlayerStatus()가 이미 확보해둔 CachedPlayer 재사용.
+			// 같은 프레임에 이미 캐스팅이 끝나 있으므로 Pawn을 다시 가져올 이유가 없음.
+	if (IsValid(CachedPlayer))
+	{
+			// 수평 속도만 봄(점프 등 수직 속도는 이동과 무관). Velocity는 cm/s 단위.
+		const float PlanarSpeed = CachedPlayer->GetVelocity().Size2D();
+
+		if (CachedPlayer->bIsAiming)
+		{
+				// [변경] TODO 해제. 팀원 코드에 bIsAiming(public)이 있는 것을 확인함.
+				// 정조준이 최우선 — 정조준 중엔 이동 여부와 무관하게 가장 좁게.
+			TargetSpread = SpreadADS;
+		}
+		else if (PlanarSpeed > WalkSpeedThreshold)
+		{
+				// [변경] 달림 판정을 속도 임계값(RunSpeedThreshold)이 아니라, 이미 설정된 bIsSprinting 플래그로 교체.
+				// 이유 : 굳이 달리는 속도로 할 필요가 없을듯.
+				// 만약 물 등에서 속도 변하면 그때는 이용될지도 모름.
+				// 플래그를 쓰면 나중에 속도 수치가 바뀌어도 UI가 안 깨진다.
+				// WalkSpeedThreshold는 "실제로 움직이고 있나"만 보는 용도 —
+				// 제자리에서 Shift만 눌러도 Idle이 유지되도록.
+			TargetSpread = CachedPlayer->bIsSprinting ? SpreadRunning : SpreadWalking;
 		}
 	}
 	
@@ -494,3 +545,5 @@ void UCH3MainHUDWidget::UpdateCrosshair(float DeltaTime)
 	if (UCanvasPanelSlot* S = Cast<UCanvasPanelSlot>(CrosshairRight->Slot))
 		S->SetPosition(FVector2D(CurrentSpread, 0.f));
 }
+
+

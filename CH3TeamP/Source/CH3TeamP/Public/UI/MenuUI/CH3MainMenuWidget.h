@@ -7,7 +7,7 @@
 class UButton;
 
 UCLASS()
-class CH3TEAMPROJECT_API UCH3MainMenuWidget : public UUserWidget
+class CH3TEAMP_API UCH3MainMenuWidget : public UUserWidget
 {
 	GENERATED_BODY()
 

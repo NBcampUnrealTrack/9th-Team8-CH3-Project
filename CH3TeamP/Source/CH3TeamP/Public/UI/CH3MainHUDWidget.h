@@ -123,10 +123,10 @@ public:
 	UTextBlock* AmmoText;
 	
 private:
-	// 폴링 대상 캐릭터 캐시.
-	// 매 프레임 캐릭터의 Cast를 반복하지 않도록 한 번 찾으면 저장해둔다.
-	// (HUD가 캐릭터보다 먼저 생길 수 있어 NativeTick에서 지연 획득)
-	// 캐릭터가 다른 곳에서 소명됐는데, cachedPlayer가 여전히 그 죽은 메모리 주소를 들고 있으면 크래시 발생할 수도 있음.
+		// 폴링 대상 캐릭터 캐시.
+		// 매 프레임 캐릭터의 Cast를 반복하지 않도록 한 번 찾으면 저장해둔다.
+		// (HUD가 캐릭터보다 먼저 생길 수 있어 NativeTick에서 지연 획득)
+		// 캐릭터가 다른 곳에서 소명됐는데, cachedPlayer가 여전히 그 죽은 메모리 주소를 들고 있으면 크래시 발생할 수도 있음.
 	UPROPERTY()
 	APlayerCharacter* CachedPlayer;
 	
@@ -134,6 +134,14 @@ private:
 	int32 TestAmmo = 30;
 
  
+		// 탄약 폴링용 캐시.
+		// 이유: 탄약은 발사/장전 때만 바뀌는데 매 프레임 SetText를 부르면 낭비.
+		// 직전 값과 다를 때만 HandleAmmoChanged를 호출.
+		// 실제 탄약은 0 이상이니, 첫 프레임에는 무조건 한 번 갱신되기 위해 -1로 초기화.
+	int32 LastPolledAmmo = -1;
+	int32 LastPolledMaxAmmo = -1;
+	
+	
  
  /* 테스트 함수(캐릭터 연결 뒤) 만약 연결이 안 된 코드는 이걸로 대체하기 위해.
 		// 테스트 함수: 연결된 코드가 없어도 UI 동작을 눈으로 확인하는 용도
@@ -141,7 +149,6 @@ private:
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Test")
 	void Test_SimulateAll();
 	*/
-	
 	
 	
 	
@@ -267,12 +274,22 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Crosshair") float SpreadRunning = 24.f; // 달릴 때
 	UPROPERTY(EditAnywhere, Category = "Crosshair") float SpreadADS = 3.f;      // 정조준(나중에 정조준 코드 붙으면 사용)
 
-	// 걷기/달리기를 가르는 두 임계값(cm/s)
+		// 걷기/달리기를 가르는 두 임계값(cm/s)
 
-	UPROPERTY(EditAnywhere, Category = "Crosshair") float WalkSpeedThreshold = 10.f;
-
+	/*달리는 걸 속도로 판정했을 때. 지금은 sprint 키가 구분점이니까 필요 없음.
 		// 달림 판정 기준 속도(cm/s). 이 값보다 빠르면 "달리는 중"으로 간주. => 나중에 달리기가 몇인지 확인하고 수정.
 	UPROPERTY(EditAnywhere, Category = "Crosshair") float RunSpeedThreshold = 300.f;
+	*/
+	
+	
+		// [변경] RunSpeedThreshold(300) → WalkSpeedThreshold(50).
+		// 역할이 바뀜: "달리는 중인가?"를 판정하던 값이 아니라,
+		// "제자리인가, 움직이는 중인가?"만 가르는 값. 달림/걷기 구분은 bIsSprinting이 담당.
+		// 50인 이유: 발판 미끄러짐 같은 미세 속도를 Idle로 처리하기 위한 여유값.
+	UPROPERTY(EditDefaultsOnly, Category = "UI|Crosshair")
+	float WalkSpeedThreshold = 50.f;
+	
+	
 
 		// 벌어짐/조임 부드러움. 클수록 빠르게 반응.
 	UPROPERTY(EditAnywhere, Category = "Crosshair") float SpreadInterpSpeed = 12.f;

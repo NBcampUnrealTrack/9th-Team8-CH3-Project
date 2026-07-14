@@ -10,7 +10,7 @@ class UUserWidget;
 	// CH3TeamProjectGameMode와는 완전히 별개인 새 클래스.
 	// 하는 일: 메인메뉴 위젯을 띄우고, 마우스 입력을 킴.
 UCLASS()
-class CH3TEAMPROJECT_API ACH3MenuGameMode : public AGameModeBase
+class CH3TEAMP_API ACH3MenuGameMode : public AGameModeBase
 {
 	GENERATED_BODY()
 
