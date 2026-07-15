@@ -3,6 +3,7 @@
              
 
 //위젯 넣는 아이콘(?)들.
+#include "UI/CH3MainHUDWidget.h"
 #include "Components/ProgressBar.h"
 #include "Components/TextBlock.h"
 #include "Components/Image.h"
@@ -14,7 +15,6 @@
 #include "TimerManager.h"
 
 //위젯 연결 관련
-#include "UI/CH3MainHUDWidget.h"
 #include "UI/MiniMap/MiniMapWidget.h"
 #include "UI/MiniMap/CH3MinimapCaptureActor.h"
 #include "UI/DamageWidget/CH3DamageNumberWidget.h"
