@@ -43,8 +43,9 @@ void ABossEnemy::StartAreaAttack(AActor* TargetActor)
 			GetWorld(),
 			CachedAreaAttackLocation,
 			32,
-			false,
+			AreaAttackRadius,
 			FColor::Red,
+			false,
 			AreaAttackWarningTime,
 			0,
 			3.0f
@@ -89,10 +90,10 @@ void ABossEnemy::ExecuteAreaAttack()
 			continue;
 		}
 		
-		UHealthComponent* HealthComponent = Actor->FindComponentByClass<UHealthComponent>();
+		UHealthComponent* TargetHealthComponent = Actor->FindComponentByClass<UHealthComponent>();
 		if (HealthComponent)
 		{
-			HealthComponent->ApplyDamage(AreaAttackDamage);
+			TargetHealthComponent->ApplyDamage(AreaAttackDamage);
 		}
 	}
 }
