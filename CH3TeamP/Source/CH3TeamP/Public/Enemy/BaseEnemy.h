@@ -80,8 +80,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Enemy")
 	virtual void Attack();
 	
-	UFUNCTION(BlueprintCallable, Category = "Enemy")
-	virtual void AttackTarget(AActor* Target);
+	UFUNCTION(BlueprintCallable, Category = "Enemy|Attack")
+	virtual void AttackTarget(AActor* TargetActor);
 	
 	UFUNCTION(BlueprintCallable, Category = "Enemy")
 	virtual void Die();
