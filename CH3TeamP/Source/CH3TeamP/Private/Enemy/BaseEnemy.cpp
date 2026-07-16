@@ -9,6 +9,8 @@
 ABaseEnemy::ABaseEnemy()
 {
 	PrimaryActorTick.bCanEverTick = false;
+	
+	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 }
 
 void ABaseEnemy::BeginPlay()
@@ -22,6 +24,11 @@ void ABaseEnemy::BeginPlay()
 void ABaseEnemy::ApplyHitSlow()
 {
 	if (!bUseHitSlow || EnemyState == EEnemyState::Dead)
+	{
+		return;
+	}
+	
+	if (!GetCharacterMovement())
 	{
 		return;
 	}
@@ -45,11 +52,27 @@ void ABaseEnemy::ResetMoveSpeed()
 		return;
 	}
 	
+	if (!GetCharacterMovement())
+	{
+		return;
+	}
+	
 	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed;
 }
 
 void ABaseEnemy::TakeEnemyDamage(int32 DamageAmount)
 {
+	// 디버깅 확인용
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(
+			-1,
+			1.0f,
+			FColor::Yellow,
+			TEXT("TakeEnemyDamage Called")
+			);
+	}
+	
 	// 이미 죽은 상태면 더 이상 데미지를 받지 않음
 	if (!HealthComponent || HealthComponent->bIsDead)
 	{
@@ -61,15 +84,22 @@ void ABaseEnemy::TakeEnemyDamage(int32 DamageAmount)
 	
 	HealthComponent->ApplyDamage(FinalDamage);
 	
+	ApplyHitSlow();
+	
 	// 피격 확인용 디버그
 	if (GEngine)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, TEXT("Enemy Hit"));
+		const FString DebugMessage = FString::Printf(
+			TEXT("Enemy Hit / Damage: %d / HP: %d"),
+			FinalDamage,
+			HealthComponent->CurrentHP
+			);
 	}
 	
 	// 체력이 0 이하가 되면 사망 처리
-	if (HealthComponent->bIsDead)
+	if (HealthComponent->CurrentHP <= 0)
 	{
+		HealthComponent->MarkDead();
 		Die();
 	}
 }
@@ -93,7 +123,7 @@ void ABaseEnemy::Attack()
 
 void ABaseEnemy::AttackTarget(AActor* Target)
 {
-	if (!HealthComponent || HealthComponent->bIsDead || !Target)
+	if (!HealthComponent || HealthComponent->bIsDead || !IsValid(Target))
 	{
 		return;
 	}

@@ -1,7 +1,7 @@
 #include "Enemy/BossEnemy.h"
 #include "Components/HealthComponent.h"
 #include "DrawDebugHelpers.h"
-#include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetSystemLibrary.h"
 
 void ABossEnemy::AttackTarget(AActor* TargetActor)
 {
@@ -9,12 +9,15 @@ void ABossEnemy::AttackTarget(AActor* TargetActor)
 	// HealthComponent 안의 변수라서 오류가 남
 	// 단, 이렇게 하려면 BaseEnemy.h에서 HealthComponent가 protected나 public이어야 함
 	// 만약 private이면 BossEnemy에서 접근을 못 해서 또 에러가 남
-	if (!TargetActor || HealthComponent || HealthComponent->bIsDead)
+	if (!IsValid(TargetActor) || !HealthComponent || HealthComponent->bIsDead)
 	{
 		return;
 	}
 	
-	const float DistanceToTarget = FVector::Dist(GetActorLocation(), TargetActor->GetActorLocation());
+	const float DistanceToTarget = FVector::Dist(
+		GetActorLocation(), 
+		TargetActor->GetActorLocation()
+		);
 	
 	if (bCanAreaAttack && DistanceToTarget <= AreaAttackRange)
 	{
@@ -27,7 +30,7 @@ void ABossEnemy::AttackTarget(AActor* TargetActor)
 
 void ABossEnemy::StartAreaAttack(AActor* TargetActor)
 {
-	if (!TargetActor)
+	if (!IsValid(TargetActor))
 	{
 		return;
 	}
@@ -42,8 +45,8 @@ void ABossEnemy::StartAreaAttack(AActor* TargetActor)
 		DrawDebugSphere(
 			GetWorld(),
 			CachedAreaAttackLocation,
-			32,
 			AreaAttackRadius,
+			32,
 			FColor::Red,
 			false,
 			AreaAttackWarningTime,
@@ -85,13 +88,13 @@ void ABossEnemy::ExecuteAreaAttack()
 	
 	for (AActor* Actor : OverlappedActors)
 	{
-		if (!Actor || Actor == this)
+		if (!IsValid(Actor) || Actor == this)
 		{
 			continue;
 		}
 		
 		UHealthComponent* TargetHealthComponent = Actor->FindComponentByClass<UHealthComponent>();
-		if (HealthComponent)
+		if (TargetHealthComponent)
 		{
 			TargetHealthComponent->ApplyDamage(AreaAttackDamage);
 		}
