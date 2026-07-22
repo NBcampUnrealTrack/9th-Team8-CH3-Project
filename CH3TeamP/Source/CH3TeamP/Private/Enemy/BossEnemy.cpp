@@ -1,7 +1,12 @@
 #include "Enemy/BossEnemy.h"
+#include "Enemy/BossThrowProjectile.h"
 #include "Components/HealthComponent.h"
 #include "DrawDebugHelpers.h"
+#include "Engine/EngineTypes.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "TimerManager.h"
+
+class ABossThrowProjectile;
 
 void ABossEnemy::AttackTarget(AActor* TargetActor)
 {
@@ -19,13 +24,33 @@ void ABossEnemy::AttackTarget(AActor* TargetActor)
 		TargetActor->GetActorLocation()
 		);
 	
+	if (bCanThrowZombie && TryThrowZombie(TargetActor))
+	{
+		return;
+	}
+	
 	if (bCanAreaAttack && DistanceToTarget <= AreaAttackRange)
 	{
 		StartAreaAttack(TargetActor);
 		return;
 	}
 	
+	BossAttackType = EBossAttackType::Melee;
+	
 	Super::AttackTarget(TargetActor);
+	
+	GetWorldTimerManager().SetTimer(
+		BossAttackTypeResetTimerHandle,
+		this,
+		&ABossEnemy::ResetBossAttackType,
+		1.0f,
+		false
+		);
+}
+
+EBossAttackType ABossEnemy::GetBossAttackType() const
+{
+	return BossAttackType;
 }
 
 void ABossEnemy::StartAreaAttack(AActor* TargetActor)
@@ -35,8 +60,9 @@ void ABossEnemy::StartAreaAttack(AActor* TargetActor)
 		return;
 	}
 	
-	bCanAreaAttack = false;
 	SetEnemyState(EEnemyState::Attack);
+	BossAttackType = EBossAttackType::Area;
+	bCanAreaAttack = false;
 	
 	CachedAreaAttackLocation = TargetActor->GetActorLocation();
 	
@@ -70,11 +96,22 @@ void ABossEnemy::StartAreaAttack(AActor* TargetActor)
 		AreaAttackCooldown,
 		false
 		);
+	
+	GetWorldTimerManager().SetTimer(
+		BossAttackTypeResetTimerHandle,
+		this,
+		&ABossEnemy::ResetBossAttackType,
+		AreaAttackWarningTime,
+		false
+		);
 }
 
 void ABossEnemy::ExecuteAreaAttack()
 {
 	TArray<AActor*> OverlappedActors;
+	
+	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
+	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
 	
 	UKismetSystemLibrary::SphereOverlapActors(
 		GetWorld(),
@@ -104,4 +141,112 @@ void ABossEnemy::ExecuteAreaAttack()
 void ABossEnemy::ResetAreaAttackCooldown()
 {
 	bCanAreaAttack = true;
+}
+
+AActor* ABossEnemy::FindThrowableZombie() const
+{
+	TArray<AActor*> OverlappedActors;
+	
+	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
+	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
+	
+	UKismetSystemLibrary::SphereOverlapActors(
+		GetWorld(),
+		GetActorLocation(),
+		ThrowSearchRadius,
+		ObjectTypes,
+		nullptr,
+		TArray<AActor*>(),
+		OverlappedActors
+		);
+	
+	for (AActor* Actor : OverlappedActors)
+	{
+		if (!IsValid(Actor) || Actor == this)
+		{
+			continue;
+		}
+		
+		if (Actor->ActorHasTag(TEXT("ThrowableZombie")))
+		{
+			return Actor;
+		}
+	}
+	
+	return nullptr;
+}
+
+bool ABossEnemy::TryThrowZombie(AActor* TargetActor)
+{
+	if (!bCanThrowZombie || !IsValid(TargetActor) || !ThrowProjectileClass)
+	{
+		return false;
+	}
+	
+	AActor* ThrowableZombie = FindThrowableZombie();
+	if (!IsValid(ThrowableZombie))
+	{
+		return false;
+	}
+	
+	bCanThrowZombie = false;
+	
+	SetEnemyState(EEnemyState::Attack);
+	BossAttackType = EBossAttackType::Throw;
+	
+	ThrowableZombie->Destroy();
+	
+	const FVector SpawnLocation = GetMesh()->DoesSocketExist(ThrowSocketName)
+	? GetMesh()->GetSocketLocation(ThrowSocketName)
+	: GetActorLocation() + GetActorForwardVector() * 150.0f + FVector(0.0f, 0.0f,120.0f);
+	
+	const FVector ThrowTargetLocation = TargetActor->GetActorLocation() + FVector(0.f, 0.f, 60.f);
+	
+	const FVector ThrowDirection = (ThrowTargetLocation - SpawnLocation).GetSafeNormal();
+	const FRotator SpawnRotation = ThrowDirection.Rotation();
+	
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+	SpawnParams.SpawnCollisionHandlingOverride = 
+		ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	
+	ABossThrowProjectile* Projectile = GetWorld()->SpawnActor<ABossThrowProjectile>(
+		ThrowProjectileClass,
+		SpawnLocation,
+		SpawnRotation,
+		SpawnParams
+		);
+	
+	if (Projectile)
+	{
+		Projectile->FireInDirection(ThrowDirection);
+	}
+	
+	GetWorldTimerManager().SetTimer(
+		ThrowCooldownTimerHandle,
+		this,
+		&ABossEnemy::ResetThrowCooldown,
+		ThrowCooldown,
+		false
+		);
+	
+	GetWorldTimerManager().SetTimer(
+		BossAttackTypeResetTimerHandle,
+		this,
+		&ABossEnemy::ResetBossAttackType,
+		1.0f,
+		false
+		);
+	
+	return true;
+}
+
+void ABossEnemy::ResetThrowCooldown()
+{
+	bCanThrowZombie = true;
+}
+
+void ABossEnemy::ResetBossAttackType()
+{
+	BossAttackType = EBossAttackType::None;
 }

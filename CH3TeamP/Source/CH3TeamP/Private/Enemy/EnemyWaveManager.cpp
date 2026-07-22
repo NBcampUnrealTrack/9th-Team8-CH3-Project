@@ -1,6 +1,7 @@
 #include "Enemy/EnemyWaveManager.h"
 #include "Enemy/BaseEnemy.h"
 #include "Engine/World.h"
+#include "TimerManager.h"
 
 AEnemyWaveManager::AEnemyWaveManager()
 {
@@ -21,34 +22,65 @@ void AEnemyWaveManager::StartWave()
 {
 	if (!Waves.IsValidIndex(CurrentWaveIndex))
 	{
+		OnAllWavesCleared.Broadcast();
 		return;
 	}
 	
-	SpawnWaveEnemies();
-}
-
-void AEnemyWaveManager::SpawnWaveEnemies()
-{
-	const FWaveInfo& CurrentWave = Waves[CurrentWaveIndex];
+	CurrentSpawnInfoIndex = 0;
+	CurrentSpawnedCount = 0;
+	RemainingEnemyCount = 0;
 	
-	for (const FEnemySpawnInfo& SpawnInfo : CurrentWave.Enemies)
+	for (const FEnemySpawnInfo& SpawnInfo : Waves[CurrentWaveIndex].SpawnInfos)
 	{
-		for (int32 i = 0; i < SpawnInfo.SpawnCount; i++)
-		{
-			SpawnEnemy(SpawnInfo.EnemyClass);
-		}
+		RemainingEnemyCount += SpawnInfo.SpawnCount;
 	}
+	
+	OnWaveChanged.Broadcast(CurrentWaveIndex + 1, Waves.Num());
+	
+	OnEnemyCountChanged.Broadcast(RemainingEnemyCount);
+	
+	GetWorldTimerManager().SetTimer(
+		SpawnTimerHandle,
+		this,
+		&AEnemyWaveManager::SpawnNextEnemy,
+		SpawnInterval,
+		true
+		);
 }
 
-void AEnemyWaveManager::SpawnEnemy(TSubclassOf<ABaseEnemy> EnemyClass)
+void AEnemyWaveManager::SpawnNextEnemy()
 {
-	if (!EnemyClass || SpawnPoints.Num() == 0)
+	if (!Waves.IsValidIndex(CurrentWaveIndex))
 	{
+		GetWorldTimerManager().ClearTimer(SpawnTimerHandle);
 		return;
 	}
 	
-	const int32 RandomIndex = FMath::RandRange(0, SpawnPoints.Num() - 1);
-	AActor* SpawnPoint = SpawnPoints[RandomIndex];
+	FEnemyWaveInfo& CurrentWave = Waves[CurrentWaveIndex];
+	
+	if (!CurrentWave.SpawnInfos.IsValidIndex(CurrentSpawnInfoIndex))
+	{
+		GetWorldTimerManager().ClearTimer(SpawnTimerHandle);
+		return;
+	}
+	
+	FEnemySpawnInfo& CurrentSpawnInfo = CurrentWave.SpawnInfos[CurrentSpawnInfoIndex];
+	
+	if (!CurrentSpawnInfo.EnemyClass)
+	{
+		CurrentSpawnInfoIndex++;
+		CurrentSpawnedCount = 0; 
+		return;
+	}
+	
+	if (SpawnPoints.Num() <= 0)
+	{
+		GetWorldTimerManager().ClearTimer(SpawnTimerHandle);
+		return;
+	}
+	
+	const int32 RandomSpawnIndex = FMath::RandRange(0, SpawnPoints.Num() - 1);
+	AActor* SpawnPoint = SpawnPoints[RandomSpawnIndex];
 	
 	if (!SpawnPoint)
 	{
@@ -56,11 +88,11 @@ void AEnemyWaveManager::SpawnEnemy(TSubclassOf<ABaseEnemy> EnemyClass)
 	}
 	
 	FActorSpawnParameters SpawnParams;
-	SpawnParams. SpawnCollisionHandlingOverride =
+	SpawnParams.SpawnCollisionHandlingOverride = 
 		ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 	
 	ABaseEnemy* SpawnedEnemy = GetWorld()->SpawnActor<ABaseEnemy>(
-		EnemyClass,
+		CurrentSpawnInfo.EnemyClass,
 		SpawnPoint->GetActorLocation(),
 		SpawnPoint->GetActorRotation(),
 		SpawnParams
@@ -68,6 +100,54 @@ void AEnemyWaveManager::SpawnEnemy(TSubclassOf<ABaseEnemy> EnemyClass)
 	
 	if (SpawnedEnemy)
 	{
-		AliveEnemyCount++;
+		if (SpawnedEnemy->GetClass()->GetName().Contains(TEXT("Boss")))
+		{
+			OnBossSpawned.Broadcast();
+		}
 	}
+	
+	CurrentSpawnedCount++;
+	
+	if (CurrentSpawnedCount >= CurrentSpawnInfo.SpawnCount)
+	{
+		CurrentSpawnInfoIndex++;
+		CurrentSpawnedCount = 0;
+	}
+	
+	if (CurrentSpawnInfoIndex >= CurrentWave.SpawnInfos.Num())
+	{
+		GetWorldTimerManager().ClearTimer(SpawnTimerHandle);
+	}
+}
+
+void AEnemyWaveManager::OnEnemyDied()
+{
+	RemainingEnemyCount--;
+	
+	if (RemainingEnemyCount < 0)
+	{
+		RemainingEnemyCount = 0;
+	}
+	
+	OnEnemyCountChanged.Broadcast(RemainingEnemyCount);
+	
+	if (RemainingEnemyCount <= 0)
+	{
+		FinishWave();
+	}
+}
+
+void AEnemyWaveManager::FinishWave()
+{
+	OnWaveCleared.Broadcast(CurrentWaveIndex + 1);
+	
+	CurrentWaveIndex++;
+	
+	if (!Waves.IsValidIndex(CurrentWaveIndex))
+	{
+		OnAllWavesCleared.Broadcast();
+		return;
+	}
+	
+	StartWave();
 }

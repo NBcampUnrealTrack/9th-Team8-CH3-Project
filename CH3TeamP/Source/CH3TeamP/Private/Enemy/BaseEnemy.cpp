@@ -4,7 +4,8 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
-#include "Items/ExpPickup.h"
+#include "Kismet/GameplayStatics.h"
+#include "Characters/Player/PlayerCharacter.h"
 
 ABaseEnemy::ABaseEnemy()
 {
@@ -147,27 +148,20 @@ void ABaseEnemy::Die()
 	}
 	
 	SetEnemyState(EEnemyState::Dead);
-	GetCharacterMovement()->DisableMovement();
 	
-	if (ExpPickupClass)
+	if (GetCharacterMovement())
 	{
-		FActorSpawnParameters SpawnParams;
-		SpawnParams.Owner = this;
-		
-		const FVector SpawnLocation = GetActorLocation() + FVector(0.f, 0.f, 30.f);
-		const FRotator SpawnRotation = FRotator::ZeroRotator;
-		
-		AActor* SpawnedActor = GetWorld()->SpawnActor<AActor>(
-			ExpPickupClass,
-			SpawnLocation,
-			SpawnRotation,
-			SpawnParams);
-		
-		AExpPickup* ExpPickup = Cast<AExpPickup>(SpawnedActor);
-		if (ExpPickup)
-		{
-			ExpPickup->ExpAmount = ExpReward;
-		}
+		GetCharacterMovement()->DisableMovement();
+	}
+	
+	APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(
+		UGameplayStatics::GetPlayerCharacter(GetWorld(), 0)
+		);
+	
+	if (PlayerCharacter)
+	{
+		// 경험치 지급 함수
+		//PlayerCharacter->AddExp(ExpReward); 실제 함수명이 다르면 여기 변경
 	}
 	
 	if (GEngine)

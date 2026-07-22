@@ -71,7 +71,8 @@ void AEnemyAIController::Tick(float DeltaTime)
 			ControlledEnemy->SetEnemyState(EEnemyState::Chase);
 		}
 
-		MoveToActor(TargetPlayer, EnemyAttackRange);
+		const float MoveAcceptanceRadius = FMath::Max(50.f, EnemyAttackRange * 0.4f);
+		MoveToActor(TargetPlayer, MoveAcceptanceRadius);
 	}
 	else
 	{
