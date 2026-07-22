@@ -670,20 +670,25 @@ void APlayerCharacter::FirePiercing()
 	if (!bHit)
 		return;
 
+	float Damage = GetCurrentDamage();
+	
 	for (const FHitResult& Hit : Hits)
 	{
 		AActor* HitActor = Hit.GetActor();
-		
+
 		if (!HitActor)
 			continue;
-		
-		float Damage = GetCurrentDamage();
 
-		// 몬스터라면 데미지 적용
+		if (Hit.bBlockingHit &&
+			!Cast<ABaseEnemy>(HitActor))
+		{
+			break;
+		}
+
 		if (ABaseEnemy* Enemy = Cast<ABaseEnemy>(HitActor))
 		{
-			Enemy->TakeEnemyDamage((int32)Damage);
-		}	
+			Enemy->TakeEnemyDamage((int32)GetCurrentDamage());
+		}
 		
 		// 맞은 위치마다 이펙트
 		if (ImpactEffect)
@@ -752,6 +757,8 @@ void APlayerCharacter::FireExplosive()
 	if (!bOverlap)
 		return;
 
+	float Damage = GetCurrentDamage();
+	
 	for (const FOverlapResult& Result : Overlaps)
 	{
 		AActor* HitActor = Result.GetActor();
@@ -761,8 +768,6 @@ void APlayerCharacter::FireExplosive()
 
 		if (HitActor == this)
 			continue;
-
-		float Damage = GetCurrentDamage();
 		
 		if (ABaseEnemy* Enemy = Cast<ABaseEnemy>(HitActor))
 		{
