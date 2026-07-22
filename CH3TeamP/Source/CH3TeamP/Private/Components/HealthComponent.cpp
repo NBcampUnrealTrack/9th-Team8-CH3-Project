@@ -19,8 +19,17 @@ void UHealthComponent::ResetHealth()
 
 void UHealthComponent::ApplyDamage(int32 Amount)
 {
-	if (bIsDead) return;                       // 죽었으면 무시
-	CurrentHP = FMath::Max(0, CurrentHP - Amount);   // 0 밑으로 안 내려감
+	if (bIsDead)
+	{
+		return;
+	}
+
+	CurrentHP = FMath::Max(0, CurrentHP - Amount);
+
+	if (CurrentHP <= 0)
+	{
+		bIsDead = true;
+	}
 }
 
 void UHealthComponent::MarkDead()

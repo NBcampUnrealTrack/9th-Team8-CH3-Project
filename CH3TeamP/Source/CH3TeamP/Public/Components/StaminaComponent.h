@@ -34,6 +34,13 @@ public:
 
 	/** 최대 스태미나 */
 	float GetMaxStamina() const;
+	
+	/** 최대 스태미나 증가 및 회복 */
+	void IncreaseMaxStamina(float Amount)
+	{
+		MaxStamina += Amount;
+		CurrentStamina = FMath::Clamp(CurrentStamina + Amount, 0.f, MaxStamina);
+	}
 
 private:
 
