@@ -26,6 +26,9 @@ protected:
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> Btn_Settings;
+	
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UButton> Btn_DevTeam;  // // 8조 소개.
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> Btn_Quit;
@@ -40,6 +43,9 @@ protected:
 	void OnSettingsClicked();
 
 	UFUNCTION()
+	void OnDevTeamClicked();
+	
+	UFUNCTION()
 	void OnQuitClicked();
 
 		// 에디터에서 지정하는 값
@@ -50,8 +56,14 @@ protected:
 		// 세팅 팝업 위젯. BP에서 WBP_Setting을 지정.
 	UPROPERTY(EditDefaultsOnly, Category = "CH3|UI")
 	TSubclassOf<UUserWidget> SettingWidgetClass;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|UI")
+	TSubclassOf<UUserWidget> DevTeamWidgetClass;
 
 private:
 	UPROPERTY()
 	TObjectPtr<UUserWidget> SettingWidget;
+	
+	UPROPERTY()
+	TObjectPtr<UUserWidget> DevTeamWidget;
 };

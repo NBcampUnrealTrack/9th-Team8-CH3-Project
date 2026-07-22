@@ -3,6 +3,14 @@
 #include "UI/CH3HUD.h"
 #include "UI/CH3MainHUDWidget.h"
 #include "UI/MenuUI/CH3PauseWidget.h"		// pause 일시정지 UI 위젯 클래스.
+#include "UI/Upgrade/CH3UpgradeSelectWidget.h"	// [카드 강화 추가 7/19] 강화 카드 선택 위젯.
+#include "UI/Upgrade/CH3UpgradeListWidget.h" // 카드 강화 인벤토리용.
+
+
+#include "Characters/Player/PlayerCharacter.h"
+#include "Components/HealthComponent.h"
+
+#include "CH3TeamProjectGameMode.h"			// [카드 강화 추가 7/19] 강화 방송 구독 + 테스트용 NotifyPlayerLevelUp 호출.
 #include "CH3GameState.h"					// GetPlayState() 게이트용. 현재 게임 상태 확인해서 일시정지 열어도 될지 물을 때.
 #include "Components/InputComponent.h"		// 사용자 입력 바인딩. BindKey, BindAction 등등. UE5 EIC니까 BindKey 사용.
 #include "Kismet/GameplayStatics.h"			// 일시정지 세팅. 게임 일시정지 기능 제어 위해. SetGamePaused. 
@@ -59,14 +67,56 @@ void ACH3HUD::BeginPlay()
 		FInputKeyBinding& EscBinding = InputComponent->BindKey(
 			EKeys::Escape, IE_Pressed, this, &ACH3HUD::TogglePauseMenu);
 		EscBinding.bExecuteWhenPaused = true;
+		
 
-			// *****PIE 테스트용 — 배포 전 삭제할 것.*****
-			// 에디터 PIE에서는 ESC가 "플레이 중지" 단축키에 먹히게 되니까. 키가 중복돼서 되는지 모름.
-			// 그래서 에디터 테스트는 P키로 한다.
+			// PIE에서는 ESC누르면 실행 종료됨. 그래서 P키 누르면 Pause가 실행되도록.
 		FInputKeyBinding& TestBinding = InputComponent->BindKey(
 			EKeys::P, IE_Pressed, this, &ACH3HUD::TogglePauseMenu);
 		TestBinding.bExecuteWhenPaused = true;
+		
+
+			// [추가 7/19] 강화 카드 PIE 테스트용 — 배포 전 삭제할 것.
+			// [ (LeftBracket)키 = 강제 카드 발동.
+			// [가 LeftBracket이었구나.
+			// 여기는 일부러 bExecuteWhenPaused를 안 킴.
+			// 카드가 이미 떠서 일시정지된 동안 [을 또 눌러 중복 요청되는 걸 입력 단계에서부터 차단. (게임모드에도 자체 가드가 있어서 이중 안전)
+		InputComponent->BindKey(
+			EKeys::LeftBracket, IE_Pressed, this, &ACH3HUD::DebugTriggerLevelUp);
+		
+		
+			// 히트마커랑 데미지 숫자 테스트용.
+			// H키를 누르면 발동.
+			// 나중에 전투 파트 델리게이트 연결하면 지워도 됨.
+			// *****PIE 테스트용 — 배포 전 삭제할 것.*****
+		InputComponent->BindKey(EKeys::H, IE_Pressed, this, &ACH3HUD::DebugTriggerHit);
+		
+		
+		
+		
+			// [추가] PIE 체력감소 테스트용 — 배포 전 삭제할 것.
+			// J키 = 플레이어 체력 10 감소. 저체력 연출(20%/10%) 확인용.
+		InputComponent->BindKey(EKeys::J, IE_Pressed, this, &ACH3HUD::DebugDamagePlayer);
 	}
+
+		// -------강화 카드 부분.		// [추가 7/19] 여기부터 새 블록.
+		// 게임모드의 두 방송을 구독한다. (카드 제시 = 열기 / 선택 확정 = 닫기)
+		// 게임모드는 레벨 로드 시 HUD보다 먼저 만들어지므로 BeginPlay 시점에 항상 잡힌다.
+	if (ACH3TeamProjectGameMode* GM = GetWorld()->GetAuthGameMode<ACH3TeamProjectGameMode>())
+	{
+		GM->OnUpgradeCardsPresented.AddDynamic(this, &ACH3HUD::HandleUpgradeCardsPresented);
+		GM->OnUpgradeConfirmed.AddDynamic(this, &ACH3HUD::HandleUpgradeConfirmed);
+	}
+	else
+	{
+			// 메뉴 레벨 등 이 게임모드가 아닌 곳에는 강화 카드가 원래 없음. 기록만 남김.
+		UE_LOG(LogTemp, Warning, TEXT("ACH3HUD: CH3TeamProjectGameMode가 아니어서 강화 카드 방송에 바인딩하지 않았습니다."));
+	}
+	
+	
+	
+	InputComponent->BindKey(EKeys::I, IE_Pressed, this, &ACH3HUD::ToggleUpgradeInventory);
+	
+	
 }
 
 
@@ -169,5 +219,130 @@ void ACH3HUD::ClosePauseMenu()
 		FInputModeGameOnly InputMode;
 		PC->SetInputMode(InputMode);
 		PC->bShowMouseCursor = false;
+	}
+}
+
+
+	// 하단은 강화 카드 화면 부분.
+	// [카드 강화 추가 7/19] 아래 함수 3개 전부 새로 추가.
+void ACH3HUD::HandleUpgradeCardsPresented(const TArray<EUpgradeType>& Cards)
+{
+	if (!UpgradeSelectWidgetClass)
+	{
+			// PauseWidgetClass 미지정 때와 같은 패턴: 조용히 안 뜨는 대신 바로 알아채게 로그.
+		UE_LOG(LogTemp, Error, TEXT("ACH3HUD: UpgradeSelectWidgetClass가 지정되지 않았습니다!"));
+		return;
+	}
+
+	APlayerController* PC = GetOwningPlayerController();
+	if (!PC)
+	{
+		return;
+	}
+
+		// Pause와 동일: 최초 1회만 생성, 그리고 재사용 가능.
+	if (!UpgradeSelectWidget)
+	{
+		UpgradeSelectWidget = CreateWidget<UCH3UpgradeSelectWidget>(PC, UpgradeSelectWidgetClass);
+	}
+	if (!UpgradeSelectWidget)
+	{
+		return;
+	}
+
+		// 이번에 제시된 카드들로 3칸을 갱신한 뒤 화면에 올림.
+	UpgradeSelectWidget->SetupCards(Cards);
+	if (!UpgradeSelectWidget->IsInViewport())
+	{
+		UpgradeSelectWidget->AddToViewport(60);		// Pause(ZOrder50)보다 위층. 상태상 동시에 뜰 일은 없지만 층을 명시적으로 구분.
+	}
+
+		// 일시정지는 게임모드가 이미 걸었음(NotifyPlayerLevelUp 안에서).
+		// HUD는 강화 흐름에서 SetGamePaused를 절대 만지지 않는다. (푸는 것도 게임모드 담당)
+		// 여기서는 "일시정지 중에도 카드 버튼을 클릭할 수 있게" 입력모드만 바꿈. (OpenPauseMenu와 같은 이유로 GameAndUI)
+	FInputModeGameAndUI InputMode;
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	PC->SetInputMode(InputMode);
+	PC->bShowMouseCursor = true;
+}
+
+void ACH3HUD::HandleUpgradeConfirmed(EUpgradeType ChosenUpgrade, AController* ForPlayer)
+{
+		// 게임 재개(SetGamePaused(false))는 게임모드(ConfirmUpgradeSelection 안에서). 여기선 화면/입력만 원복.
+	if (UpgradeSelectWidget && UpgradeSelectWidget->IsInViewport())
+	{
+		UpgradeSelectWidget->RemoveFromParent();		// 파괴 아님. Pause와 동일하게 인스턴스 재사용.
+	}
+
+	if (APlayerController* PC = GetOwningPlayerController())
+	{
+		FInputModeGameOnly InputMode;
+		PC->SetInputMode(InputMode);
+		PC->bShowMouseCursor = false;
+	}
+}
+
+
+	// I키 입력을 받아 MainHUD 위젯의 창 토글로 위임한다.
+	// HUD 액터는 입력만 받고, 실제 창 생성/여닫기는 위젯(UCH3MainHUDWidget)이 처리한다.
+void ACH3HUD::ToggleUpgradeInventory()
+{
+	if (MainHUD)
+	{
+		MainHUD->ToggleUpgradeInventory();
+	}
+}
+
+
+	//------------이 아래는 디버그용.-------------------------
+void ACH3HUD::DebugTriggerLevelUp()
+{
+		// PIE 테스트용 — 배포 전 삭제할 것.
+	if (ACH3TeamProjectGameMode* GM = GetWorld()->GetAuthGameMode<ACH3TeamProjectGameMode>())
+	{
+			// NewLevel은 지금 로그에만 쓰이므로 1로 고정.
+		GM->NotifyPlayerLevelUp(GetOwningPlayerController(), 1);
+	}
+}
+
+
+	//히트마커랑 대미지 디버그용.
+void ACH3HUD::DebugTriggerHit()
+{
+	if (!MainHUD)
+	{
+		return;
+	}
+
+		// 20% 확률로 치명타 — 일반/치명타 색상 분기를 둘 다 확인하려고 랜덤으로 섞음.
+	const bool bCritical = FMath::FRand() < 0.2f;
+
+		// 데미지 값도 매번 다르게. 자릿수가 바뀔 때 레이아웃이 깨지는지 보려면 폭이 넓어야 함
+	const float TestDamage = FMath::FRandRange(5.f, 250.f);
+
+		// 플레이어 앞쪽 임의 위치를 피격 지점으로 삼음
+		// 간단히 말해서, 몹 안 맞아도 피격 숫자 뜨게.(숫자가 뜰 월드 좌표)
+	FVector HitLocation = FVector::ZeroVector;
+	if (APawn* Pawn = GetOwningPlayerController() ? GetOwningPlayerController()->GetPawn() : nullptr)
+	{
+		HitLocation = Pawn->GetActorLocation()
+			+ Pawn->GetActorForwardVector() * 400.f
+			+ FVector(FMath::FRandRange(-150.f, 150.f), FMath::FRandRange(-150.f, 150.f), FMath::FRandRange(0.f, 150.f));
+	}
+
+	MainHUD->HandleHitConfirmed(bCritical);
+	MainHUD->HandleDamageDealt(TestDamage, HitLocation, bCritical);
+}
+
+
+void ACH3HUD::DebugDamagePlayer()
+{
+	// *****PIE 테스트용 — 배포 전 삭제할 것.*****
+	APawn* Pawn = GetOwningPlayerController() ? GetOwningPlayerController()->GetPawn() : nullptr;
+	APlayerCharacter* PC = Cast<APlayerCharacter>(Pawn);
+	if (PC && PC->HealthComp)
+	{
+		// 10씩 깎음. 여러 번 눌러 20%, 10% 구간을 확인.
+		PC->HealthComp->ApplyDamage(10);
 	}
 }
