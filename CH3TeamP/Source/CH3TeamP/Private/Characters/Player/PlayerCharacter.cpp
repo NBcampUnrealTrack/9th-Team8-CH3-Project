@@ -839,11 +839,13 @@ void APlayerCharacter::ApplyUpgrade(EUpgradeType ChosenUpgrade, AController* For
 	case EUpgradeType::ExplosiveAmmo:
 		// [폭발탄 전환] 현재 탄종을 폭발탄(Explosive)으로 변경
 		CurrentAmmoType = EAmmoType::Explosive;
+		
 		break;
 
 	case EUpgradeType::PiercingAmmo:
 		// [관통탄 전환] 현재 탄종을 관통탄(Piercing)으로 변경
 		CurrentAmmoType = EAmmoType::Piercing;
+		
 		break;
 
 	case EUpgradeType::StaminaUp:
