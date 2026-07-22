@@ -13,6 +13,8 @@
 #include "Kismet/GameplayStatics.h" // 임팩트 스폰용
 #include "GameFramework/PlayerController.h" // APlayerController
 #include "Animation/PlayerAnimInstance.h"
+#include "CH3TeamProjectGameMode.h"
+#include "Enemy/BaseEnemy.h"
 #include "Engine/LocalPlayer.h" // ULocalPlayer
 #include "Engine/Engine.h"
 #include "Engine/OverlapResult.h"
@@ -66,6 +68,46 @@ APlayerCharacter::APlayerCharacter()
 	
 }
 
+void APlayerCharacter::AddEXP(float EXPValue)
+{
+	CurrentEXP += EXPValue;
+
+	// 1. 단순 레벨업 체크 (while 대신 if로 1단계씩 처리)
+	if (CurrentEXP >= MaxEXP)
+	{
+		CurrentEXP -= MaxEXP;
+		CurrentLevel++;
+		MaxEXP *= 1.2f; // 다음 레벨 필요 경험치 증가
+
+		// 2. 레벨업 시 줌 해제 및 연사 중단 처리 (필요시 기존 구현 함수 호출)
+		if (bIsAiming)
+		{
+			ToggleAim(); 
+		}
+		
+		StopFire(); // 사격 중단 함수가 있다면 호출
+
+		// 3. 레벨업 사운드 재생 (일시정지 되기 전 실행)
+		if (LevelUpSound)
+		{
+			UGameplayStatics::PlaySound2D(GetWorld(), LevelUpSound);
+		}
+
+		// ★ [UI 연동] 레벨업 이벤트 방송 (UI 담당자가 바인딩하여 레벨 텍스트 갱신)
+		OnLevelUp.Broadcast(CurrentLevel);
+
+		// 4. GameMode에 레벨업 알림 (게임 일시정지 및 카드 UI 호출)
+		ACH3TeamProjectGameMode* GM = Cast<ACH3TeamProjectGameMode>(UGameplayStatics::GetGameMode(this));
+		if (GM)
+		{
+			GM->NotifyPlayerLevelUp(GetController(), CurrentLevel);
+		}
+	}
+
+	// ★ [UI 연동] 경험치 변경 이벤트 방송 (UI 담당자가 바인딩하여 EXP 프로그래스 바 갱신)
+	OnEXPChanged.Broadcast(CurrentEXP, MaxEXP);
+}
+
 void APlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
@@ -97,7 +139,13 @@ void APlayerCharacter::BeginPlay()
 	// 원하는 만큼만 내리기
 	CrouchCameraHeight = StandingCameraHeight - 32.f;
 	
-	
+	// GameMode에 델리게이트 바인딩
+	ACH3TeamProjectGameMode* GameMode = Cast<ACH3TeamProjectGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
+	if (GameMode)
+	{
+		// Dynamic Multicast Delegate이므로 AddDynamic을 사용합니다.
+		GameMode->OnUpgradeConfirmed.AddDynamic(this, &APlayerCharacter::ApplyUpgrade);
+	}
 }
 
 void APlayerCharacter::Tick(float DeltaTime)
@@ -182,6 +230,11 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 			EIC->BindAction(PlayerInputConfig->AimAction, ETriggerEvent::Started,this, &APlayerCharacter::ToggleAim);
 		if (PlayerInputConfig->ReloadAction)
 			EIC->BindAction(PlayerInputConfig->ReloadAction, ETriggerEvent::Started, this, &APlayerCharacter::Reload);
+		if (PlayerInputConfig->TestDamageAction)
+			EIC->BindAction(PlayerInputConfig->TestDamageAction, ETriggerEvent::Started, this, &APlayerCharacter::InputActionTestDamage);
+		if (PlayerInputConfig->TestDeathAction)
+			EIC->BindAction(PlayerInputConfig->TestDeathAction, ETriggerEvent::Started, this, &APlayerCharacter::InputActionTestDeath);
+		
 	}
 }
 
@@ -374,6 +427,25 @@ void APlayerCharacter::InputActionRiple(const FInputActionValue& Value)  { TakeR
 
 void APlayerCharacter::FireGun()
 {
+	if (bIsReloading)
+	{
+		return;
+	}
+
+	if (CurrentAmmoCount <= 0)
+	{
+		Reload(FInputActionValue());
+		return;
+	}
+	
+	CurrentAmmoCount--;
+	
+	OnFireAnimation();   // 발사 몽타주
+	
+	if (FireSound)
+	{
+		UGameplayStatics::PlaySound2D(GetWorld(), FireSound);
+	}
 	
 	switch(CurrentAmmoType)
 	{
@@ -417,6 +489,14 @@ void APlayerCharacter::StopFire()
 	GetWorldTimerManager().ClearTimer(FireTimerHandle);
 }
 
+void APlayerCharacter::PlayReloadMontage()
+{
+	if (ReloadMontage && GetMesh() && GetMesh()->GetAnimInstance())
+	{
+		GetMesh()->GetAnimInstance()->Montage_Play(ReloadMontage);
+	}
+}
+
 void APlayerCharacter::Reload(const FInputActionValue& Value)
 {
 	if (bIsReloading)
@@ -428,10 +508,17 @@ void APlayerCharacter::Reload(const FInputActionValue& Value)
 	{
 		return;
 	}
+	
+	// ★ 줌 상태라면 줌 해제
+	if (bIsAiming)
+	{
+		ToggleAim(); // 이미 줌 중이므로 ToggleAim을 부르면 bIsAiming = false 및 TargetFOV = DefaultFOV 설정됨
+	}
+	
 	bIsReloading = true;
 	
-	UE_LOG(LogTemp, Warning, TEXT("Reload Start"));
-
+	PlayReloadMontage();
+	
 	GetWorldTimerManager().SetTimer(
 		ReloadTimerHandle,
 		this,
@@ -461,9 +548,15 @@ void APlayerCharacter::OnDamage(int32 Amount)
 	
 	HealthComp->ApplyDamage(Amount);
 
-	if (HealthComp->CurrentHP <= 0)
+	if (HealthComp->bIsDead)
 	{
 		OnDeathAnimation();
+
+		if (ACH3TeamProjectGameMode* GM =
+			Cast<ACH3TeamProjectGameMode>(GetWorld()->GetAuthGameMode()))
+		{
+			GM->NotifyPlayerDied(GetController());
+		}
 	}
 	else
 	{
@@ -492,34 +585,19 @@ void APlayerCharacter::OnDeathAnimation()
 		A->PlayDeathMontage(TEXT("DeathStart"));
 }
 
-void APlayerCharacter::InputActionTestDamage(const struct FInputActionValue& Value)
+void APlayerCharacter::InputActionTestDamage(const FInputActionValue& Value)
 {
 	OnDamage(30);
 }
 
-void APlayerCharacter::InputActionTestDeath(const struct FInputActionValue& Value)
+void APlayerCharacter::InputActionTestDeath(const FInputActionValue& Value)
 {
 	OnDamage(9999);
 }
 
+
 void APlayerCharacter::FireNormal()
 {
-	OnFireAnimation();   // 발사 몽타주
-	
-	if (bIsReloading)
-	{
-		return;
-	}
-
-	if (CurrentAmmoCount <= 0)
-	{
-		Reload(FInputActionValue());
-		return;
-	}
-
-	CurrentAmmoCount--;
-
-	UE_LOG(LogTemp, Warning, TEXT("Ammo : %d"), CurrentAmmoCount); // 탄창 수 UI 나올경우 삭제 예정
 	
 	// (발사 직후) 머즐 플래시 - 한 번 터뜨리고, 루프 방지로 잠깐 뒤 끔
 	if (MuzzleComp)
@@ -553,8 +631,11 @@ void APlayerCharacter::FireNormal()
 	{
 		float Damage = GetCurrentDamage();
 		
-		// Monster->TakeDamage(Damage);
-		// TODO 몬스터한테 피격 처리 구현 예정
+		// 맞은 액터가 몬스터인지 확인
+		if (ABaseEnemy* Enemy = Cast<ABaseEnemy>(Hit.GetActor()))
+		{
+			Enemy->TakeEnemyDamage((int32)Damage);
+		}
 		
 		// 임팩트 이펙트 — 맞은 지점에 한 번 스폰 (Cascade)
 		if (ImpactEffect)
@@ -570,6 +651,7 @@ void APlayerCharacter::FireNormal()
 
 void APlayerCharacter::FirePiercing()
 {
+	
 	FVector Start = FirstPersonCamera->GetComponentLocation();
 	FVector End = Start + FirstPersonCamera->GetForwardVector() * 10000.f;
 
@@ -590,13 +672,18 @@ void APlayerCharacter::FirePiercing()
 
 	for (const FHitResult& Hit : Hits)
 	{
-		if (!Hit.GetActor())
+		AActor* HitActor = Hit.GetActor();
+		
+		if (!HitActor)
 			continue;
 		
 		float Damage = GetCurrentDamage();
 
-		// Monster->TakeDamage(Damage);
-		// TODO 몬스터한테 피격 처리 구현 예정
+		// 몬스터라면 데미지 적용
+		if (ABaseEnemy* Enemy = Cast<ABaseEnemy>(HitActor))
+		{
+			Enemy->TakeEnemyDamage((int32)Damage);
+		}	
 		
 		// 맞은 위치마다 이펙트
 		if (ImpactEffect)
@@ -611,6 +698,7 @@ void APlayerCharacter::FirePiercing()
 
 void APlayerCharacter::FireExplosive()
 {
+	
 	FVector Start = FirstPersonCamera->GetComponentLocation();
 	FVector End = Start + FirstPersonCamera->GetForwardVector() * 10000.f;
 
@@ -635,6 +723,15 @@ void APlayerCharacter::FireExplosive()
 		UGameplayStatics::SpawnEmitterAtLocation(
 			GetWorld(),
 			ImpactEffect,
+			Hit.ImpactPoint);
+	}
+	
+	// 폭발 소리
+	if (ExplosionSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(
+			GetWorld(),
+			ExplosionSound,
 			Hit.ImpactPoint);
 	}
 
@@ -667,8 +764,10 @@ void APlayerCharacter::FireExplosive()
 
 		float Damage = GetCurrentDamage();
 		
-		// TODO 몬스터한테 피격 처리 구현 예정
-		// HitActor->TakeDamage(...);
+		if (ABaseEnemy* Enemy = Cast<ABaseEnemy>(HitActor))
+		{
+			Enemy->TakeEnemyDamage((int32)Damage);
+		}
 	}
 }
 
@@ -685,5 +784,90 @@ float APlayerCharacter::GetCurrentDamage() const
 	case EAmmoType::Normal:
 	default:
 		return NormalDamage;
+	}
+}
+
+void APlayerCharacter::ApplyUpgrade(EUpgradeType ChosenUpgrade, AController* ForPlayer)
+{
+	// 나를 조종하는 컨트롤러에게 전달된 이벤트인지 안전 검사
+	if (ForPlayer && ForPlayer != GetController())
+	{
+		return;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("PlayerCharacter: 강화 적용 -> %d"), static_cast<int32>(ChosenUpgrade));
+
+	switch (ChosenUpgrade)
+	{
+	case EUpgradeType::AttackUp:
+		// 모든 탄종의 데미지를 일괄 20% 증가
+		NormalDamage *= 1.2f;
+		PiercingDamage *= 1.2f;
+		ExplosiveDamage *= 1.2f;
+        
+		UE_LOG(LogTemp, Log, TEXT("공격력 강화 완료! Normal: %.1f, Piercing: %.1f, Explosive: %.1f"), 
+			   NormalDamage, PiercingDamage, ExplosiveDamage);
+		break;
+
+	case EUpgradeType::FireRateUp:
+		// [연사 속도 20% 증가] 초당 발사 수 기준 1.20배 증가 (발사 간격이 짧아짐)
+		FireRate *= 1.20f;
+		if (GetWorldTimerManager().IsTimerActive(FireTimerHandle))
+		{
+			StartFire(); 
+		}
+		break;
+
+	case EUpgradeType::MoveSpeedUp:
+		// [이동 속도 10% 증가] 기본 걷기 속도 및 스프린트(달리기) 속도 1.10배 상향
+		WalkSpeed *= 1.10f;
+		SprintSpeed *= 1.10f;
+		UpdateMoveSpeed();
+		break;
+
+	case EUpgradeType::MagazineUp:
+		// [탄창 용량 고정 +10 증가] 최대 탄창 수 10발 추가 및 탄약 즉시 완충
+		MaxAmmo += 10;
+		CurrentAmmoCount = MaxAmmo; 
+		break;
+
+	case EUpgradeType::ExplosiveAmmo:
+		// [폭발탄 전환] 현재 탄종을 폭발탄(Explosive)으로 변경
+		CurrentAmmoType = EAmmoType::Explosive;
+		break;
+
+	case EUpgradeType::PiercingAmmo:
+		// [관통탄 전환] 현재 탄종을 관통탄(Piercing)으로 변경
+		CurrentAmmoType = EAmmoType::Piercing;
+		break;
+
+	case EUpgradeType::StaminaUp:
+		// [최대 스태미나 20% 증가 및 현재 스태미나 채움]
+		if (StaminaComp)
+		{
+			StaminaComp->IncreaseMaxStamina(20.f);
+			
+			UE_LOG(LogTemp, Log, TEXT("스태미나 +20 증가 완료! (현재 최대 스태미나: %.1f)"), StaminaComp->GetMaxStamina());
+		}
+		break;
+
+	case EUpgradeType::ReloadSpeedUp:
+		// [장전 애니메이션 속도 20% 증가 & 장전 시간 20% 단축]
+		ReloadAnimSpeed += 0.2f; 
+		ReloadTime = FMath::Max(0.5f, ReloadTime * 0.8f);
+		break;
+
+	case EUpgradeType::Heal:
+		// [체력 완전 회복 (풀피)] CurrentHP를 MaxHp 수치로 직접 설정
+		if (HealthComp)
+		{
+			HealthComp->CurrentHP = HealthComp->MaxHp;
+
+			UE_LOG(LogTemp, Log, TEXT("체력 완전 회복 완료! (현재 HP: %d / %d)"), HealthComp->CurrentHP, HealthComp->MaxHp);
+		}
+		break;
+
+	default:
+		break;
 	}
 }

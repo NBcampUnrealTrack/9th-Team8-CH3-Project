@@ -41,13 +41,11 @@ public:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input|Actions")
 	UInputAction* ReloadAction;
-	
+
 	UPROPERTY(EditAnywhere, Category="Input|Actions")
 	class UInputAction*  TestDamageAction;
 
 	UPROPERTY(EditAnywhere, Category="Input|Actions")
 	class UInputAction*  TestDeathAction;
-	
-	
 
 };	
