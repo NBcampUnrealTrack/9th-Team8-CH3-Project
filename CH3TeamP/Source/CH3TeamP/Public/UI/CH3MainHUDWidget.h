@@ -57,6 +57,26 @@ public:
 	UFUNCTION() void HandleWaveTimeChanged(float TimeRemaining);
 	
 	
+	
+		// 저체력 붉은 오버레이. WBP의 LowHealthVignette와 이름으로 연결.
+		// BindWidgetOptional: WBP에 없어도 컴파일 에러 대신 그냥 동작 안 함(안전).
+	UPROPERTY(meta = (BindWidgetOptional))
+	class UImage* LowHealthVignette;
+
+		// 이 비율 이하부터 붉은 연출 시작 (0.20 = 20%). 에디터에서 조절 가능하게 노출.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|LowHealth")
+	float LowHealthThreshold = 0.20f;
+
+		// 이 비율에서 최대 강도 + 시야 최대 축소 (0.10 = 10%).
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|LowHealth")
+	float CriticalHealthThreshold = 0.10f;
+
+		// 심장박동 맥동 속도. 클수록 빨리 뜀.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|LowHealth")
+	float PulseSpeed = 4.0f;
+	
+	
+	
 	/* 아직 넣지 않을 부분
 	//------GameState지만, 넣을지 미확정 부분-----------------
  
@@ -82,7 +102,7 @@ protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float DeltaTime) override;
 	
 	// 체력/스태미나를 매 프레임 읽어옴
-	void PollPlayerStatus();
+	void PollPlayerStatus(float DeltaTime);
 	
 		//  GameState 델리게이트에 Handle 함수 연결 + 현재값으로 초기 동기화
 	void BindDelegates();
@@ -142,6 +162,12 @@ private:
 	int32 LastPolledMaxAmmo = -1;
 	
 	
+		// 저체력 연출 갱신. 매 프레임 폴링에서 호출.
+	void UpdateLowHealthEffect(float HealthPercent, float DeltaTime);
+
+		// 맥동 애니메이션용 누적 시간. 프레임을 넘어 유지돼야 해서 멤버로 둠.
+	float PulseAccumulator = 0.0f;
+	
  
  /* 테스트 함수(캐릭터 연결 뒤) 만약 연결이 안 된 코드는 이걸로 대체하기 위해.
 		// 테스트 함수: 연결된 코드가 없어도 UI 동작을 눈으로 확인하는 용도
@@ -191,7 +217,10 @@ protected:
 	class UTextBlock* Quest;
 
 	UPROPERTY(meta = (BindWidget))
-	class UTextBlock* Quest_details;
+	class UTextBlock* Quest_Timedetails;
+	
+	UPROPERTY(meta = (BindWidget))
+	class UTextBlock* Quest_Mobdetails;
 
 		// 점수 표시 (아직 WBP에 없어도 되는 선택적 위젯)
 	UPROPERTY(meta = (BindWidgetOptional))
@@ -298,9 +327,30 @@ protected:
 	void UpdateCrosshair(float DeltaTime);
 	
 	
+		// 획득한 강화 카드 목록 출력하는 인벤토리.
+public:
+	// 강화 확정 시 호출. 종류별 개수를 세고 목록 위젯을 갱신.
+	//   OnUpgradeConfirmed 델리게이트 규격과 일치해야 함(EUpgradeType, AController*).
+	//   (FOnUpgradeConfirmed 선언: CH3TeamProjectGameMode.h)
+	UFUNCTION()
+	void HandleUpgradeAcquired(EUpgradeType ChosenUpgrade, AController* ForPlayer);
+
+protected:
+	// 획득한 강화 종류별 개수. 카드 확정마다 +1.
+	//   Heal은 일회성 회복이라 목록에서 제외(넣지 않음).
+	TMap<EUpgradeType, int32> AcquiredUpgrades;
+
+	// 강화 목록 위젯. WBP에서 클래스 지정.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Upgrade")
+	TSubclassOf<class UCH3UpgradeListWidget> UpgradeListWidgetClass;
+
+	// 화면에 붙일 목록 위젯 인스턴스. WBP의 UpgradeListSlot(NamedSlot 등)에 넣거나 뷰포트에 추가.
+	UPROPERTY(meta = (BindWidgetOptional))
+	UCH3UpgradeListWidget* UpgradeListWidget;
 	
-	
-	
+		// 토글용.
+public:
+	void ToggleUpgradeInventory();
 	
 	/* -------------캐릭터 연결 없이 테스트할 시
 private:
@@ -321,6 +371,9 @@ private:
 	int32 TestAmmo = 30;
 	*/
 };
+
+
+
 
 
 

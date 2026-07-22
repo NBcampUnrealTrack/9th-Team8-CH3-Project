@@ -20,6 +20,8 @@
 #include "UI/DamageWidget/CH3DamageNumberWidget.h"
 #include "UI/DamageWidget/CH3KillFeedEntryWidget.h"
 #include "CH3GameState.h"   // GameState 바인딩을 위해 include.
+#include "CH3TeamProjectGameMode.h"  //강화 카드 인벤토리를 위해. 
+#include "UI/Upgrade/CH3UpgradeListWidget.h"
 
 //컴포넌트 및 캐릭터
 #include "Characters/Player/PlayerCharacter.h"
@@ -51,8 +53,17 @@ void UCH3MainHUDWidget::NativeConstruct()
 			MinimapMarkerCanvas->AddChildToCanvas(PlayerMarker);
 			if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(PlayerMarker->Slot))
 			{
-				CanvasSlot->SetAlignment(FVector2D(0.5f, 0.5f)); // 보류 중이던 정렬 수정, 여기서 적용
-				CanvasSlot->SetPosition(MinimapImagePixelSize * 0.5f); // 정중앙 고정
+					// 앵커를 캔버스 정중앙(0.5,0.5)에 고정.
+				CanvasSlot->SetAnchors(FAnchors(0.5f, 0.5f));
+
+					// 마커의 중심을 앵커에 맞춤. 없으면 마커 왼쪽위 모서리가 기준이라 치우침.
+				CanvasSlot->SetAlignment(FVector2D(0.5f, 0.5f));
+
+					// 위치는 0이 곧 미니맵 정중앙.
+				CanvasSlot->SetPosition(FVector2D(0.f, 0.f));
+				
+					// 슬롯 크기를 이미지(24×24)와 일치시킴. 크기를 안 잡으면 슬롯이 이미지를 늘려서 마커가 가로로 퍼짐.
+				CanvasSlot->SetSize(FVector2D(24.f, 24.f));
 			}
 		}
 	}
@@ -86,7 +97,7 @@ void UCH3MainHUDWidget::NativeTick(const FGeometry& MyGeometry, float DeltaTime)
 	
 	Super::NativeTick(MyGeometry, DeltaTime);
 	
-	PollPlayerStatus();
+	PollPlayerStatus(DeltaTime);
 	
 		// 크로스헤어 벌어짐 갱신
 	UpdateCrosshair(DeltaTime);
@@ -124,6 +135,16 @@ void UCH3MainHUDWidget::BindDelegates()
 	GS->OnWaveChanged.AddDynamic(this, &UCH3MainHUDWidget::HandleWaveChanged);
 	GS->OnEnemiesRemainingChanged.AddDynamic(this, &UCH3MainHUDWidget::HandleEnemiesRemainingChanged);
 	GS->OnWaveTimeChanged.AddDynamic(this, &UCH3MainHUDWidget::HandleWaveTimeChanged);
+	
+	
+		// 카드 강화 부분.
+		// 강화 확정 구독 — 획득 목록 갱신용.
+		//   ACH3HUD도 같은 델리게이트를 구독하지만(카드 닫기용), 멀티캐스트라 둘 다 받아도 됨.
+	if (ACH3TeamProjectGameMode* GM = GetWorld()->GetAuthGameMode<ACH3TeamProjectGameMode>())
+	{
+		GM->OnUpgradeConfirmed.AddDynamic(this, &UCH3MainHUDWidget::HandleUpgradeAcquired);
+	}
+	
 
 	
 	// [중요] 초기값 동기화:
@@ -191,7 +212,7 @@ void UCH3MainHUDWidget::SyncMinimapRangeFromCaptureActor()
 
 
 	//체력/ 스태미나/ 총알을 를 매 프레임 읽어오기.
-void UCH3MainHUDWidget::PollPlayerStatus()
+void UCH3MainHUDWidget::PollPlayerStatus(float DeltaTime)
 {
 	if (!IsValid(CachedPlayer)) //cachedPlayer가 아닌 isvalid인 이유 : 
 	{
@@ -205,6 +226,9 @@ void UCH3MainHUDWidget::PollPlayerStatus()
 	if (HealthBar && CachedPlayer->HealthComp)
 	{
 		HealthBar->SetPercent(CachedPlayer->HealthComp->GetHealthPercent());
+		
+		// DeltaTime을 함께 넘김 (맥동 계산에 필요)
+		UpdateLowHealthEffect(CachedPlayer->HealthComp->GetHealthPercent(), DeltaTime);
 	}
  
 	if (StaminaBar && CachedPlayer->StaminaComp)
@@ -235,13 +259,21 @@ void UCH3MainHUDWidget::PollPlayerStatus()
 		//---------퀘스트 관련(묶음)
 void UCH3MainHUDWidget::RefreshQuestDetails()
 {
-	if (Quest_details)
+	if (Quest_Timedetails)
 	{
 		// 남은시간과 남은적은 서로 다른 델리게이트로 따로 도착함.
-		// 캐시해둔 두 값을 합쳐서 한 줄로 표시. (이벤트 도착 순서와 무관하게 항상 최신 상태 유지)
-		Quest_details->SetText(FText::FromString(
-			FString::Printf(TEXT("남은 시간 %.0f초  |  남은 적 %d"),
-				CachedTimeRemaining, CachedEnemiesRemaining)));
+		// 캐시해둔 두 값을 합치지 않음.
+		// 각각 한 줄씩 표시. (이벤트 도착 순서와 무관하게 항상 최신 상태 유지)
+		Quest_Timedetails->SetText(FText::FromString(
+			FString::Printf(TEXT("남은 시간 %.0f초"),
+				CachedTimeRemaining)));
+	}
+	
+	if (Quest_Mobdetails)
+	{
+		Quest_Mobdetails->SetText(FText::FromString(
+			FString::Printf(TEXT("남은 적 %d"),
+				CachedEnemiesRemaining)));
 	}
 }
 
@@ -303,6 +335,8 @@ void UCH3MainHUDWidget::HandleWaveTimeChanged(float TimeRemaining)
 
 void UCH3MainHUDWidget::HandleHealthChanged(float CurrentHealth, float MaxHealth)
 {
+	
+	
 		// 현재는 PollPlayerStatus()가 매 프레임 이미 반영 중이라 아무도 호출하지 않음.
 		// OnHealthChanged 델리게이트를 추가해 BindDelegates에서 연결하면 그때부터 쓰임.
 	if (HealthBar && MaxHealth > 0.f)
@@ -546,4 +580,109 @@ void UCH3MainHUDWidget::UpdateCrosshair(float DeltaTime)
 		S->SetPosition(FVector2D(CurrentSpread, 0.f));
 }
 
+
+
+	// 체력 저하 시 화면 이펙트 부분.
+void UCH3MainHUDWidget::UpdateLowHealthEffect(float HealthPercent, float DeltaTime)
+{
+		// WBP에 없으면(BindWidgetOptional이라 null 가능) 조용히 종료.
+	if (!LowHealthVignette)
+	{
+		return;
+	}
+
+		// 1) 20% 초과면 완전히 끄고 끝
+		// Collapsed = 렌더링 자체를 생략(성능). 붉은 기운이 전혀 없어야 하는 구간.
+	if (HealthPercent > LowHealthThreshold)
+	{
+		LowHealthVignette->SetVisibility(ESlateVisibility::Collapsed);
+		return;
+	}
+
+		// 체력 20% 이하. 여기 도달 시 이펙트가 보이게 키기.
+		// HitTestInvisible = 화면엔 보이되 마우스 클릭은 통과(아래 버튼 안 막음).
+	LowHealthVignette->SetVisibility(ESlateVisibility::HitTestInvisible);
+
+		// 2) 강도 계산: 20% -> 0.0, 10% -> 1.0 으로 매핑
+		// GetMappedRangeValueClamped: 입력범위를 출력범위로 비례 변환 + 범위 밖은 잘라줌.
+		// 입력을 (0.20, 0.10) 순서로 준 건, 체력이 낮을수록 강도가 커지게 방향을 뒤집은 것.
+		// (정의 위치: Engine/Source/Runtime/Core/Public/Math/UnrealMathUtility.h)
+	const float Intensity = FMath::GetMappedRangeValueClamped(
+		FVector2D(LowHealthThreshold, CriticalHealthThreshold),
+		FVector2D(0.0f, 1.0f),
+		HealthPercent);
+
+		// 3) 심장박동 맥동
+		// 시간을 계속 쌓아 sin에 넣으면 -1~1 파도가 됨. 그걸 0~1로 바꿔 밝기 진동으로 씀.
+		// PulseAccumulator가 멤버여야 하는 이유: 지역 변수면 매 프레임 0으로 초기화돼 파도가 안 생김.
+	PulseAccumulator += DeltaTime * PulseSpeed;
+	const float Pulse = (FMath::Sin(PulseAccumulator) * 0.5f + 0.5f);	// 0~1 진동
+
+		// 기본 강도 70% + 맥동 30%. 항상 어느 정도 붉되, 그 위에서 두근거림.
+	const float FinalAlpha = Intensity * (0.7f + 0.3f * Pulse);
+
+		// 4) 투명도 적용
+		// 색은 흰색(1,1,1)으로 두고 알파만 조절. 텍스처가 이미 붉으니 색을 곱하지 않음.
+	LowHealthVignette->SetColorAndOpacity(FLinearColor(1.f, 1.f, 1.f, FinalAlpha));
+
+		// 5) 시야 축소: 강도가 셀수록 이미지를 확대
+		// 붉은 가장자리가 안쪽으로 밀려들어와 시야가 좁아 보임. 카메라 안 건드리고 UI만으로 구현.
+		// RenderScale은 렌더링만 키움(레이아웃 영향 없음). 1.0배 → 최대 1.6배.
+	const float Scale = 1.0f + Intensity * 0.2f;
+	LowHealthVignette->SetRenderScale(FVector2D(Scale, Scale));
+}
+
+
+
+		// 카드 강화의 인벤토리 부분.
+void UCH3MainHUDWidget::HandleUpgradeAcquired(EUpgradeType ChosenUpgrade, AController* ForPlayer)
+{
+	// Heal은 일회성 회복 → 목록에 넣지 않음. 여기서 걸러냄.
+	if (ChosenUpgrade == EUpgradeType::Heal)
+	{
+		return;
+	}
+
+	// 해당 종류 개수 +1. FindOrAdd: 없으면 0으로 만들고 반환, 있으면 기존 값 반환.
+	int32& Count = AcquiredUpgrades.FindOrAdd(ChosenUpgrade);
+	Count++;
+
+			/* 이 부분은 버프처럼 화면에 상시 표시할 때 사용하는 거.
+	// 목록 위젯에 갱신된 맵 전달.
+	if (UpgradeListWidget)
+	{
+		UpgradeListWidget->RefreshList(AcquiredUpgrades);
+	}
+	*/
+	
+		// 강화 카드 리스트가 창이 열려 있을 때만 다시 그리도록.
+		//  닫혀 있으면 개수만 올려두고, I키로 열 때 ToggleInventory가 갱신함.
+		//  안 보이는 창을 그리는 건 낭비라서 IsInViewport()로 확인.
+	if (UpgradeListWidget && UpgradeListWidget->IsInViewport())
+	{
+		UpgradeListWidget->RefreshList(AcquiredUpgrades);
+	}
+}
+
+
+
+	// 카드 강화 인벤토리 용 토글 함수들.
+void UCH3MainHUDWidget::ToggleUpgradeInventory()
+{
+	// [디버그] I키 입력이 여기까지 도달하는지 확인용. 확인 후 삭제.
+	UE_LOG(LogTemp, Warning, TEXT("[HUD] ToggleUpgradeInventory 호출됨"));
+	
+	if (!UpgradeListWidgetClass)
+	{
+		return;
+	}
+	if (!UpgradeListWidget)
+	{
+		UpgradeListWidget = CreateWidget<UCH3UpgradeListWidget>(GetOwningPlayer(), UpgradeListWidgetClass);
+	}
+	if (UpgradeListWidget)
+	{
+		UpgradeListWidget->ToggleInventory(AcquiredUpgrades);
+	}
+}
 

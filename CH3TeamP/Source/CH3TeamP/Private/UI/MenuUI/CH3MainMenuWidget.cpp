@@ -17,6 +17,11 @@ void UCH3MainMenuWidget::NativeConstruct()
 	{
 		Btn_Settings->OnClicked.AddDynamic(this, &UCH3MainMenuWidget::OnSettingsClicked);
 	}
+	
+	if (Btn_DevTeam)
+	{
+		Btn_DevTeam->OnClicked.AddDynamic(this, &UCH3MainMenuWidget::OnDevTeamClicked);
+	}
 
 	if (Btn_Quit)
 	{
@@ -70,6 +75,32 @@ void UCH3MainMenuWidget::OnSettingsClicked()
 		SettingWidget->AddToViewport(10);
 	}
 }
+
+	// 팀 소개 버튼을 누를 시.
+void UCH3MainMenuWidget::OnDevTeamClicked()
+{
+	if (!DevTeamWidgetClass)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[CH3MainMenu] DevTeamWidgetClass 미지정. WBP Details에서 설정할 것"));
+		return;
+	}
+
+		// 이미 열려있으면 또 만들지 않음. (버튼 연타 방어)
+	if (DevTeamWidget && DevTeamWidget->IsInViewport())
+	{
+		return;
+	}
+
+	DevTeamWidget = CreateWidget<UUserWidget>(GetOwningPlayer(), DevTeamWidgetClass);
+	if (DevTeamWidget)
+	{
+		// ZOrder 10 → 메인메뉴(0) 위에 얹힌다. 메인메뉴는 뒤에 그대로 남는다.
+		DevTeamWidget->AddToViewport(10);
+	}
+}
+
+
+
 
 	// 나가기 버튼 누를 시 -> 종료.
 void UCH3MainMenuWidget::OnQuitClicked()
