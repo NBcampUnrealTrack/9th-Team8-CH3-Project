@@ -22,10 +22,14 @@ class UCH3MinimapMarkerWidget;
 class UCH3DamageNumberWidget;
 class UCH3KillFeedEntryWidget;
 class ACH3MinimapCaptureActor;
+class ABaseEnemy;	//적 몬스터 위치 확인용
 	// 이후 필요한 클래스들 여기에 추가.
 
 	//포인터로만 들고 있기에, 전방 선언.
 class APlayerCharacter;
+
+	// 게임 결과 위젯.
+class UCH3ResultWidget;
 
 
 UCLASS()
@@ -422,6 +426,8 @@ public:
 	//   (FOnUpgradeConfirmed 선언: CH3TeamProjectGameMode.h)
 	UFUNCTION()
 	void HandleUpgradeAcquired(EUpgradeType ChosenUpgrade, AController* ForPlayer);
+	
+	
 
 protected:
 	// 획득한 강화 종류별 개수. 카드 확정마다 +1.
@@ -435,6 +441,15 @@ protected:
 	// 화면에 붙일 목록 위젯 인스턴스. WBP의 UpgradeListSlot(NamedSlot 등)에 넣거나 뷰포트에 추가.
 	UPROPERTY(meta = (BindWidgetOptional))
 	UCH3UpgradeListWidget* UpgradeListWidget;
+	
+	
+	// 게임 클리어/오버 결과 화면. WBP에서 클래스 지정.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Result")
+	TSubclassOf<class UCH3ResultWidget> ResultWidgetClass;
+
+	// 화면에 붙일 결과 위젯 인스턴스.
+	UPROPERTY()
+	class UCH3ResultWidget* ResultWidget;
 	
 		// 토글용.
 public:

@@ -22,6 +22,8 @@
 #include "CH3GameState.h"   // GameState 바인딩을 위해 include.
 #include "CH3TeamProjectGameMode.h"  //강화 카드 인벤토리를 위해. 
 #include "UI/Upgrade/CH3UpgradeListWidget.h"
+	// 게임 결과
+#include "UI/CH3ResultWidget.h"
 
 //컴포넌트 및 캐릭터
 #include "Characters/Player/PlayerCharacter.h"
@@ -176,6 +178,11 @@ void UCH3MainHUDWidget::BindDelegates()
 	{
 		PC->OnEXPChanged.AddDynamic(this, &UCH3MainHUDWidget::HandleEXPChanged);
 		PC->OnLevelUp.AddDynamic(this, &UCH3MainHUDWidget::HandleLevelUp);
+		
+		
+		// 데미지/히트 방송 구독 — 데미지 숫자 + 히트마커 둘 다 이걸로 처리.
+		PC->OnDamageDealt.AddDynamic(this, &UCH3MainHUDWidget::HandleDamageDealt);
+
 
 		HandleEXPChanged(PC->CurrentEXP, PC->MaxEXP);
 		HandleLevelUp(PC->CurrentLevel);
@@ -205,10 +212,6 @@ void UCH3MainHUDWidget::BindDelegates()
 	// [TODO] 탄약/탄환 시스템 생기면:
 	// PC->OnAmmoChanged.AddDynamic(this, &UCH3MainHUDWidget::HandleAmmoChanged);
 	// PC->OnBulletSpeciesChanged.AddDynamic(this, &UCH3MainHUDWidget::HandleBulletSpeciesChanged);
- 
-	// [TODO] 데미지/킬 델리게이트가 GameState/GameMode에 생기면:
-	// GS->OnDamageDealt.AddDynamic(this, &UCH3MainHUDWidget::HandleDamageDealt);
-	// GS->OnEnemyKilled.AddDynamic(this, &UCH3MainHUDWidget::HandleEnemyKilled);
 }
 
 
@@ -314,11 +317,30 @@ void UCH3MainHUDWidget::HandleGamePlayStateChanged(EGamePlayState NewState)
 	switch (NewState)
 	{
 	case EGamePlayState::GameClear:
-		if (Quest) Quest->SetText(FText::FromString(TEXT("클리어!")));
-		break;
 	case EGamePlayState::GameOver:
-		if (Quest) Quest->SetText(FText::FromString(TEXT("게임 오버")));
-		break;
+		{
+			const bool bIsClear = (NewState == EGamePlayState::GameClear);
+
+			if (Quest)
+			{
+				Quest->SetText(FText::FromString(bIsClear ? TEXT("클리어!") : TEXT("게임 오버")));
+			}
+
+			// [추가] 결과 화면 표시.
+			if (ResultWidgetClass)
+			{
+				if (!ResultWidget)
+				{
+					ResultWidget = CreateWidget<UCH3ResultWidget>(GetOwningPlayer(), ResultWidgetClass);
+				}
+				if (ResultWidget)
+				{
+					ResultWidget->AddToViewport(70);
+					ResultWidget->ShowResult(bIsClear);
+				}
+			}
+			break;
+		}
 	case EGamePlayState::LevelUpPause:
 		// [TODO] 레벨업 카드 UI 표시 (다음 단계)
 		break;
@@ -457,6 +479,11 @@ void UCH3MainHUDWidget::HandleHitConfirmed(bool bIsCritical)
 		//적이 대미지 입을 시 그 자리에 숫자 스폰.
 void UCH3MainHUDWidget::HandleDamageDealt(float DamageAmount, FVector HitLocation, bool bIsCritical)
 {
+	
+	// [디버그] 확인 후 삭제.
+	UE_LOG(LogTemp, Warning, TEXT("[Damage] HandleDamageDealt 호출됨. Damage=%.1f"), DamageAmount);
+
+	
 	if (!DamageNumberWidgetClass) return;
  
 	FVector2D ScreenPos;
@@ -477,6 +504,9 @@ void UCH3MainHUDWidget::HandleDamageDealt(float DamageAmount, FVector HitLocatio
 	NewNumber->SetPositionInViewport(ScreenPos / DPIScale, false);
  
 	NewNumber->InitDamageNumber(DamageAmount, bIsCritical);
+	
+	// 같은 신호로 히트마커도 같이 표시.
+	HandleHitConfirmed(bIsCritical);
 }
 
 
