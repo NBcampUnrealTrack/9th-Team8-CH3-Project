@@ -26,6 +26,9 @@ class IConsoleObject;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnUpgradeCardsPresented, const TArray<EUpgradeType>&, Cards);
 // 강화가 선택 확정되어 실제 효과를 적용해야 할 때 전투 로직으로 보내는 이벤트
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnUpgradeConfirmed, EUpgradeType, ChosenUpgrade, AController*, ForPlayer);
+	// 추가 : UI담당 - 김민석 : [필수과제] 킬 피드를 위해 수정.(07/23)
+	// 적 처치 확정 시 UI로 보내는 이벤트 (킬 피드 표시용)
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEnemyKilledNotify, EEnemyType, KilledEnemyType);
 
 UCLASS(minimalapi)
 class ACH3TeamProjectGameMode : public AGameModeBase
@@ -101,6 +104,10 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "CH3|Events")
 	FOnUpgradeConfirmed OnUpgradeConfirmed;
+	
+		// 추가 : UI담당 - 김민석 : [필수과제] 킬 카운트를 위해 수정.(07/23)
+	UPROPERTY(BlueprintAssignable, Category = "CH3|Events")
+	FOnEnemyKilledNotify OnEnemyKilledNotify;
 
 protected:
 	virtual void BeginPlay() override;
@@ -195,6 +202,10 @@ private:
 
 	void TickWaveTimer();
 	TArray<EUpgradeType> RollUpgradeCards() const;
+		// UI담당 - 김민석 : 탄환 변경 건을 위해 수정.(07/23)
+		// 한 줄만 추가.
+		// 탄환 계열 강화인지 판정. 나중에 탄환 종류가 늘어나면 이 함수 한 곳만 고치면 됨.
+	static bool IsAmmoUpgrade(EUpgradeType Type);	
 	int32 GetScoreForEnemy(EEnemyType EnemyType) const;
 
 	ACH3GameState* GetCH3GameState() const;
@@ -215,6 +226,12 @@ private:
 	EGamePlayState StateBeforePause = EGamePlayState::WaveInProgress;
 	TWeakObjectPtr<AController> PendingUpgradeController;
 	TArray<EUpgradeType> CurrentUpgradeCards;
+	
+	
+		// UI 담당 - 김민석 추가 부분(07/23)
+		// 마지막으로 선택된 탄환 강화. 같은 탄환이 다음 카드에 다시 나오지 않게 하는 용도.
+		// MAX = 아직 탄환을 고른 적 없음. (Hidden 값이라 후보 풀에 절대 안 들어가서 센티널로 안전)
+	EUpgradeType LastChosenAmmo = EUpgradeType::MAX;
 
 	FTimerHandle IntermissionTimerHandle;
 	FTimerHandle WaveTimerHandle;

@@ -77,6 +77,13 @@ void UCH3MainHUDWidget::NativeConstruct()
 	}
 	
 	
+		//3) 탄종 아이콘 초기값. 시작은 항상 일반탄.
+	if (BulletTypeIcon && NormalAmmoTexture)
+	{
+		BulletTypeIcon->SetBrushFromTexture(NormalAmmoTexture, false);
+	}
+	
+	
 
 	// 3) GameState 델리게이트 바인드(연결) + 초기값 동기화
 	BindDelegates();
@@ -135,7 +142,8 @@ void UCH3MainHUDWidget::BindDelegates()
 	GS->OnWaveChanged.AddDynamic(this, &UCH3MainHUDWidget::HandleWaveChanged);
 	GS->OnEnemiesRemainingChanged.AddDynamic(this, &UCH3MainHUDWidget::HandleEnemiesRemainingChanged);
 	GS->OnWaveTimeChanged.AddDynamic(this, &UCH3MainHUDWidget::HandleWaveTimeChanged);
-	
+		// 누적 처치 수.
+	GS->OnKillCountChanged.AddDynamic(this, &UCH3MainHUDWidget::HandleKillCountChanged);
 	
 		// 카드 강화 부분.
 		// 강화 확정 구독 — 획득 목록 갱신용.
@@ -143,6 +151,9 @@ void UCH3MainHUDWidget::BindDelegates()
 	if (ACH3TeamProjectGameMode* GM = GetWorld()->GetAuthGameMode<ACH3TeamProjectGameMode>())
 	{
 		GM->OnUpgradeConfirmed.AddDynamic(this, &UCH3MainHUDWidget::HandleUpgradeAcquired);
+		
+			// [추가] 적 처치 델리게이트 부분. 방송 구독 — 킬 피드 한 줄 표시용.
+		GM->OnEnemyKilledNotify.AddDynamic(this, &UCH3MainHUDWidget::HandleEnemyKilled);
 	}
 	
 
@@ -155,8 +166,22 @@ void UCH3MainHUDWidget::BindDelegates()
 	HandleWaveChanged(GS->GetCurrentWave(), GS->GetTotalWaves());
 	HandleEnemiesRemainingChanged(GS->GetEnemiesRemaining());
 	HandleWaveTimeChanged(GS->GetWaveTimeRemaining());
+		// 킬 카운트 초기값 동기화. HUD 생성 전에 이미 잡은 적이 있을 수 있음.
+	HandleKillCountChanged(GS->GetTotalKillCount());
 	
 
+		// [해제] 캐릭터의 EXP/레벨업 델리게이트는 이미 존재 확인됨. 바인딩.
+		// HealthChanged/StaminaChanged는 캐릭터 쪽에 델리게이트 자체가 없어 여전히 폴링(PollPlayerStatus) 사용.
+	if (APlayerCharacter* PC = Cast<APlayerCharacter>(GetOwningPlayerPawn()))
+	{
+		PC->OnEXPChanged.AddDynamic(this, &UCH3MainHUDWidget::HandleEXPChanged);
+		PC->OnLevelUp.AddDynamic(this, &UCH3MainHUDWidget::HandleLevelUp);
+
+		HandleEXPChanged(PC->CurrentEXP, PC->MaxEXP);
+		HandleLevelUp(PC->CurrentLevel);
+	}
+	
+	
 	// [TODO - 캐릭터 담당자 코드 완성 후 봉인해제]
 	// 캐릭터에 OnHealthChanged / OnStaminaChanged 델리게이트가 생기면 여기서 바인딩:
 	// if (APlayerCharacter* PC = Cast<APlayerCharacter>(GetOwningPlayerPawn()))
@@ -164,14 +189,12 @@ void UCH3MainHUDWidget::BindDelegates()
 	//     PC->OnHealthChanged.AddDynamic(this, &UCH3MainHUDWidget::HandleHealthChanged);
 	//     PC->OnStaminaChanged.AddDynamic(this, &UCH3MainHUDWidget::HandleStaminaChanged);
 	// }
-
-	// [TODO - 레벨업 카드 UI 만들 때 열 것들.]
-	// GameMode의 OnUpgradeCardsPresented에 바인딩 → 카드 UI 표시
-	// 선택 완료 시 GameMode->ConfirmUpgradeSelection(선택한카드) 호출
+	
 	
 	
 	// ※ 체력/스태미나는 PollPlayerStatus()가 매 프레임 담당. 아래 HandleHealthChanged/
 	//   HandleStaminaChanged는 팀원이 나중에 델리게이트를 추가할 때를 위한 "대기 중" 구현.
+	// ※ 경험치/레벨업은 캐릭터에 델리게이트가 이미 있어 위에서 바로 바인딩함(대기 아님).
  
 	// [TODO] PlayerCharacter에 FOnHitConfirmed 델리게이트 추가되면:
 	// if (APlayerCharacter* PC = Cast<APlayerCharacter>(GetOwningPlayerPawn()))
@@ -237,6 +260,10 @@ void UCH3MainHUDWidget::PollPlayerStatus(float DeltaTime)
 	}
 	
 	
+		// 맵 경계 이탈 경고.
+	UpdateBoundaryWarning(CachedPlayer->GetActorLocation());
+	
+	
 	
 		// 탄약 폴링.
 		// CurrentAmmoCount / MaxAmmo 둘 다 PlayerCharacter의 public 멤버라 그냥 읽으면 됨.
@@ -252,6 +279,7 @@ void UCH3MainHUDWidget::PollPlayerStatus(float DeltaTime)
 			// 이미 만들어둔 함수를 그대로 재사용. (델리게이트가 생기면 이 함수만 그대로 바인딩.)
 		HandleAmmoChanged(NowAmmo, NowMaxAmmo);
 	}
+	
 	
 	
 }
@@ -307,6 +335,16 @@ void UCH3MainHUDWidget::HandleScoreChanged(int32 NewScore)
 	}
 }
 
+	// 킬 카운트.
+void UCH3MainHUDWidget::HandleKillCountChanged(int32 NewKillCount)
+{
+	if (KillCountText)
+	{
+		KillCountText->SetText(FText::FromString(
+			FString::Printf(TEXT("처치 : %d"), NewKillCount)));
+	}
+}
+
 void UCH3MainHUDWidget::HandleWaveChanged(int32 CurrentWave, int32 TotalWaves)
 {
 	if (Quest)
@@ -355,6 +393,25 @@ void UCH3MainHUDWidget::HandleStaminaChanged(float CurrentStamina, float MaxStam
 		StaminaBar->SetPercent(CurrentStamina / MaxStamina);
 	}
 }
+
+
+	//경험치바 부분.
+void UCH3MainHUDWidget::HandleEXPChanged(float NewCurrentEXP, float NewMaxEXP)
+{
+	if (EXPBar && NewMaxEXP > 0.f)
+	{
+		EXPBar->SetPercent(NewCurrentEXP / NewMaxEXP);
+	}
+}
+	// 레벨업 부분.
+void UCH3MainHUDWidget::HandleLevelUp(int32 NewLevel)
+{
+	if (LevelText)
+	{
+		LevelText->SetText(FText::FromString(FString::Printf(TEXT("Lv.%d"), NewLevel)));
+	}
+}
+
 
 
 
@@ -504,6 +561,27 @@ FVector2D UCH3MainHUDWidget::WorldToMinimapPosition(const FVector& WorldLocation
 	//----------크로스헤어 부분(달릴 때 벌어지게)
 void UCH3MainHUDWidget::UpdateCrosshair(float DeltaTime)
 {
+	
+		// 정조준 중엔 스코프로 화면 전체를 덮고, 크로스헤어는 숨김.
+		// 스코프와 크로스헤어가 동시에 보이면 어색하므로 서로 배타적으로 처리.
+	const bool bAiming = IsValid(CachedPlayer) && CachedPlayer->bIsAiming;
+	
+	
+	if (ScopeOverlay)
+	{
+		ScopeOverlay->SetVisibility(bAiming ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	}
+
+	if (CrosshairTop) CrosshairTop->SetVisibility(bAiming ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
+	if (CrosshairBottom) CrosshairBottom->SetVisibility(bAiming ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
+	if (CrosshairLeft) CrosshairLeft->SetVisibility(bAiming ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
+	if (CrosshairRight) CrosshairRight->SetVisibility(bAiming ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
+
+	if (!CrosshairTop || !CrosshairBottom || !CrosshairLeft || !CrosshairRight)
+	{
+		return;
+	}
+	
 		// 크로스헤어의 작대기 4개 중 하나라도 없으면(WBP에 미배치) 전체 스킵 - null 안전장치
 	if (!CrosshairTop || !CrosshairBottom || !CrosshairLeft || !CrosshairRight)
 	{
@@ -632,16 +710,83 @@ void UCH3MainHUDWidget::UpdateLowHealthEffect(float HealthPercent, float DeltaTi
 	LowHealthVignette->SetRenderScale(FVector2D(Scale, Scale));
 }
 
+void UCH3MainHUDWidget::UpdateBoundaryWarning(const FVector& PlayerLocation)
+{
+	if (!BoundaryWarningVignette)
+	{
+		return;
+	}
+
+	// FVector 성분은 UE5 LWC 때문에 double. float 멤버와 섞이면 Max/Min 템플릿이 타입을 못 정함.
+	const float PlayerX = static_cast<float>(PlayerLocation.X);
+	const float PlayerY = static_cast<float>(PlayerLocation.Y);
+
+	// 네 벽까지의 거리. 안쪽이면 양수, 넘으면 음수.
+	// [변경] 기존 Max3(0.f, ...) 방식은 "얼마나 벗어났나"만 남기고 "얼마나 안쪽인가"를
+	//        전부 0으로 뭉갰음. 플레이어가 벽에 막혀 못 나가는 이상 그 값은 항상 0이라
+	//        경고 강도를 만들 수 없었다. 그래서 부호 있는 거리로 교체.
+	const float DistMinX = PlayerX - BoundaryMinX;
+	const float DistMaxX = BoundaryMaxX - PlayerX;
+	const float DistMinY = PlayerY - BoundaryMinY;
+	const float DistMaxY = BoundaryMaxY - PlayerY;
+
+	// 가장 가까운 벽까지의 거리. 이 값 하나로 강도를 정한다.
+	const float NearestDist = FMath::Min(
+		FMath::Min(DistMinX, DistMaxX),
+		FMath::Min(DistMinY, DistMaxY));
+
+	// 마진보다 안쪽이면 경고 없음. Collapsed로 렌더링 자체를 생략.
+	if (NearestDist >= BoundaryWarningMargin)
+	{
+		BoundaryWarningVignette->SetVisibility(ESlateVisibility::Collapsed);
+		return;
+	}
+
+	BoundaryWarningVignette->SetVisibility(ESlateVisibility::HitTestInvisible);
+
+	// 마진 지점에서 0.0, 벽에서 1.0.
+	// 입력을 (Margin, 0) 순서로 준 건 "가까울수록 진해지게" 방향을 뒤집은 것.
+	// (저체력에서 체력이 낮을수록 진해지게 한 것과 같은 패턴)
+	const float Intensity = FMath::GetMappedRangeValueClamped(
+		FVector2D(BoundaryWarningMargin, 0.f),
+		FVector2D(0.f, 1.f),
+		NearestDist);
+
+	BoundaryWarningVignette->SetColorAndOpacity(
+		FLinearColor(0.f, 0.f, 0.f, Intensity * BoundaryWarningMaxAlpha));
+}
+
+
+
+
+
+
 
 
 		// 카드 강화의 인벤토리 부분.
 void UCH3MainHUDWidget::HandleUpgradeAcquired(EUpgradeType ChosenUpgrade, AController* ForPlayer)
 {
-	// Heal은 일회성 회복 → 목록에 넣지 않음. 여기서 걸러냄.
-	if (ChosenUpgrade == EUpgradeType::Heal)
+		
+		// 관통탄/폭발탄은 "중첩 능력치"가 아니라 "현재 장착 상태".
+		// 인벤토리엔 안 넣고, 여기서 HUD 아이콘만 교체함.
+		// (캐릭터의 CurrentAmmoType이 protected라 못 읽지만, 카드 선택 신호로 대신 판단)
+	if (ChosenUpgrade == EUpgradeType::PiercingAmmo)
 	{
+		if (BulletTypeIcon && PiercingAmmoTexture)
+		{
+			BulletTypeIcon->SetBrushFromTexture(PiercingAmmoTexture, false);
+		}
 		return;
 	}
+	if (ChosenUpgrade == EUpgradeType::ExplosiveAmmo)
+	{
+		if (BulletTypeIcon && ExplosiveAmmoTexture)
+		{
+			BulletTypeIcon->SetBrushFromTexture(ExplosiveAmmoTexture, false);
+		}
+		return;
+	}
+	
 
 	// 해당 종류 개수 +1. FindOrAdd: 없으면 0으로 만들고 반환, 있으면 기존 값 반환.
 	int32& Count = AcquiredUpgrades.FindOrAdd(ChosenUpgrade);

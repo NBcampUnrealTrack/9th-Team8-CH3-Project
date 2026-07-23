@@ -358,6 +358,11 @@ void ACH3TeamProjectGameMode::NotifyEnemyKilled(EEnemyType EnemyType, AControlle
 	if (ACH3GameState* GS = GetCH3GameState())
 	{
 		GS->AddScore(Score);
+		
+			// 추가 : UI담당 - 김민석 : [필수과제] 킬 카운트를 위해 수정.(07/23)
+			// 누적 처치 수 증가. 점수와 별개로 "몇 마리 잡았나"를 따로 셈.
+			// (EnemiesRemaining은 감소하는 값이라 누적 킬 수로 쓸 수 없음)
+		GS->AddKillCount(1);
 	}
 
 	EnemiesAlive = FMath::Max(0, EnemiesAlive - 1);
@@ -365,6 +370,12 @@ void ACH3TeamProjectGameMode::NotifyEnemyKilled(EEnemyType EnemyType, AControlle
 	{
 		GS->SetEnemiesRemaining(EnemiesAlive);
 	}
+	
+		// 추가 : UI담당 - 김민석 : [필수과제] 킬 카운트를 위해 수정.(07/23)
+		// UI에 처치 사실을 방송. 킬 피드 한 줄 표시용.
+		// 점수/카운트는 GameState가 값을 들고 있지만, 킬 피드는 "순간의 사건"이라
+		// 저장할 값이 없어 GameMode가 직접 방송한다.
+	OnEnemyKilledNotify.Broadcast(EnemyType);
 
 	UE_LOG(LogCH3GameMode, Verbose, TEXT("적 처치(type=%d), +%d점, 현재 생존 적=%d"),
 		(int32)EnemyType, Score, EnemiesAlive);
@@ -419,7 +430,17 @@ void ACH3TeamProjectGameMode::ConfirmUpgradeSelection(EUpgradeType ChosenUpgrade
 		UE_LOG(LogCH3GameMode, Warning, TEXT("제시되지 않은 강화 선택 시도. 무시."));
 		return;
 	}
+	
+		// UI담당 - 김민석 : 탄환 변경 건을 위해 수정.(07/23)
+		// 탄환 계열이면 기록. 다음 추첨에서 같은 종류의 탄환만 후보에서 빠짐.
+		// (관통 → 폭발 → 관통 순서는 허용됨: 기록이 덮어써지므로)
+	if (IsAmmoUpgrade(ChosenUpgrade))
+	{
+		LastChosenAmmo = ChosenUpgrade;
+	}	
 
+	
+	
 	OnUpgradeConfirmed.Broadcast(ChosenUpgrade, PendingUpgradeController.Get());
 
 	CurrentUpgradeCards.Reset();
@@ -606,6 +627,8 @@ FWaveInfo ACH3TeamProjectGameMode::GetWaveInfo(int32 WaveNumber) const
 
 TArray<EUpgradeType> ACH3TeamProjectGameMode::RollUpgradeCards() const
 {
+	/*기존 유탁님 코드 - 변경일 : 07/23 - 변경자 : 김민석
+	 *변경 사유 : 힐 카드는 항상 한 장, 탄환 변경 카드는 중복으로 안 뜨게.
 	// 힐 포함 전체 풀 (힐도 강화와 동일한 후보 중 하나).
 	TArray<EUpgradeType> Pool;
 	for (uint8 i = 0; i < (uint8)EUpgradeType::MAX; ++i)
@@ -623,6 +646,64 @@ TArray<EUpgradeType> ACH3TeamProjectGameMode::RollUpgradeCards() const
 		Result.Add(Pool[i]);
 	}
 	return Result;
+	
+	*/
+	
+		// UI담당 - 김민석 : 탄환 변경 건을 위해 수정(추가).(07/23)
+		// 현재 함수 전체 수정(추가).
+	TArray<EUpgradeType> Result;
+
+		// 1) 힐은 항상 한 장 확정. (팀 요청: 회복 카드는 무조건 후보에 포함)
+	Result.Add(EUpgradeType::Heal);
+
+		// 2) 나머지 후보 풀 구성.
+		//    - 힐은 이미 확정됐으므로 제외 (같은 카드 두 장 방지)
+		//    - 현재 장착 중인 탄환만 제외. 다른 탄환은 남겨둬서 교체가 가능하게 함.
+	TArray<EUpgradeType> Pool;
+	for (uint8 i = 0; i < (uint8)EUpgradeType::MAX; ++i)
+	{
+		const EUpgradeType Type = (EUpgradeType)i;
+
+		if (Type == EUpgradeType::Heal)
+		{
+			continue;
+		}
+		if (Type == LastChosenAmmo)
+		{
+			continue;
+		}
+		
+			// (07/23) 장전 속도 증가는 카드 등장 목록에서 제외.
+			// (전투 쪽 ApplyUpgrade의 ReloadSpeedUp 로직은 그대로 둠 — 카드로만 안 뜨게 함)
+		if (Type == EUpgradeType::ReloadSpeedUp)
+		{
+			continue;
+		}
+
+		Pool.Add(Type);
+		
+	}
+
+		// 3) 남은 자리를 중복 없이 균등 추첨. (힐 1장을 이미 넣었으므로 -1)
+	const int32 Remaining = FMath::Min(UpgradeCardCount - 1, Pool.Num());
+	for (int32 i = 0; i < Remaining; ++i)
+	{
+		const int32 Index = FMath::RandRange(i, Pool.Num() - 1);
+		Pool.Swap(i, Index);
+		Result.Add(Pool[i]);
+	}
+
+	/* 힐 카드가 항상 1번에 고정되지 않도록 만드는 코드 - 현재 계획에선 필요없을 것으로 판단.
+		// 4) 결과 순서를 섞기.
+		//    안 섞으면 힐이 항상 첫 칸에 고정되어, 플레이어가 "1번은 늘 힐"로 학습해버림.
+	for (int32 i = Result.Num() - 1; i > 0; --i)
+	{
+		const int32 j = FMath::RandRange(0, i);
+		Result.Swap(i, j);
+	}
+	*/
+
+	return Result;
 }
 
 int32 ACH3TeamProjectGameMode::GetScoreForEnemy(EEnemyType EnemyType) const
@@ -632,4 +713,14 @@ int32 ACH3TeamProjectGameMode::GetScoreForEnemy(EEnemyType EnemyType) const
 		return *Found;
 	}
 	return 0;
+}
+
+
+	// UI담당 - 김민석 : 탄환 변경 건을 위해 수정.(07/23)
+
+bool ACH3TeamProjectGameMode::IsAmmoUpgrade(EUpgradeType Type)
+{
+		// 탄환 계열을 한 곳에 모아둠. 종류가 늘면 여기에만 추가하면 됨.
+	return Type == EUpgradeType::ExplosiveAmmo
+		|| Type == EUpgradeType::PiercingAmmo;
 }
