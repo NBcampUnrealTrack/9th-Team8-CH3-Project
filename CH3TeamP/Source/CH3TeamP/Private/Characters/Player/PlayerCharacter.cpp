@@ -671,32 +671,30 @@ void APlayerCharacter::FirePiercing()
 		return;
 
 	float Damage = GetCurrentDamage();
-	
+
 	for (const FHitResult& Hit : Hits)
 	{
-		AActor* HitActor = Hit.GetActor();
-
-		if (!HitActor)
-			continue;
-
-		if (Hit.bBlockingHit &&
-			!Cast<ABaseEnemy>(HitActor))
-		{
-			break;
-		}
-
-		if (ABaseEnemy* Enemy = Cast<ABaseEnemy>(HitActor))
-		{
-			Enemy->TakeEnemyDamage((int32)GetCurrentDamage());
-		}
-		
-		// 맞은 위치마다 이펙트
+		// 맞은 위치에는 무조건 이펙트 생성
 		if (ImpactEffect)
 		{
 			UGameplayStatics::SpawnEmitterAtLocation(
 				GetWorld(),
 				ImpactEffect,
 				Hit.ImpactPoint);
+		}
+
+		AActor* HitActor = Hit.GetActor();
+
+		ABaseEnemy* Enemy = Cast<ABaseEnemy>(HitActor);
+
+		if (Enemy)
+		{
+			Enemy->TakeEnemyDamage((int32)Damage);
+		}
+
+		if (Hit.bBlockingHit && !Enemy)
+		{
+			break;
 		}
 	}
 }
@@ -723,11 +721,11 @@ void APlayerCharacter::FireExplosive()
 		return;
 
 	// 폭발 이펙트
-	if (ImpactEffect)
+	if (ExplosionImpactEffect)
 	{
 		UGameplayStatics::SpawnEmitterAtLocation(
 			GetWorld(),
-			ImpactEffect,
+			ExplosionImpactEffect,
 			Hit.ImpactPoint);
 	}
 	
