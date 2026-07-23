@@ -672,7 +672,16 @@ TArray<EUpgradeType> ACH3TeamProjectGameMode::RollUpgradeCards() const
 		{
 			continue;
 		}
+		
+			// (07/23) 장전 속도 증가는 카드 등장 목록에서 제외.
+			// (전투 쪽 ApplyUpgrade의 ReloadSpeedUp 로직은 그대로 둠 — 카드로만 안 뜨게 함)
+		if (Type == EUpgradeType::ReloadSpeedUp)
+		{
+			continue;
+		}
+
 		Pool.Add(Type);
+		
 	}
 
 		// 3) 남은 자리를 중복 없이 균등 추첨. (힐 1장을 이미 넣었으므로 -1)
