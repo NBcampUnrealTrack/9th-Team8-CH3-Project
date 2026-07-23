@@ -2,6 +2,7 @@
 
 #include "UI/CH3HUD.h"
 #include "UI/CH3MainHUDWidget.h"
+#include "Characters/Player/PlayerCharacter.h" // 경험치 획득 PIE용(7/23)
 #include "UI/MenuUI/CH3PauseWidget.h"		// pause 일시정지 UI 위젯 클래스.
 #include "UI/Upgrade/CH3UpgradeSelectWidget.h"	// [카드 강화 추가 7/19] 강화 카드 선택 위젯.
 #include "UI/Upgrade/CH3UpgradeListWidget.h" // 카드 강화 인벤토리용.
@@ -298,10 +299,15 @@ void ACH3HUD::ToggleUpgradeInventory()
 void ACH3HUD::DebugTriggerLevelUp()
 {
 		// PIE 테스트용 — 배포 전 삭제할 것.
-	if (ACH3TeamProjectGameMode* GM = GetWorld()->GetAuthGameMode<ACH3TeamProjectGameMode>())
+		// 추가 수정 - 7/23 : 레벨업을 경험치 획득으로 변경.
+		// 게임모드를 직접 부르는 대신, 캐릭터의 AddEXP로 경험치를 채움.
+		// 이러면 실제 레벨업 경로(AddEXP → OnLevelUp → GameMode::NotifyPlayerLevelUp)를
+		// 그대로 타므로, 경험치바/레벨업/카드 UI를 한 번에 검증할 수 있음.
+	APawn* Pawn = GetOwningPlayerController() ? GetOwningPlayerController()->GetPawn() : nullptr;
+	if (APlayerCharacter* PC = Cast<APlayerCharacter>(Pawn))
 	{
-			// NewLevel은 지금 로그에만 쓰이므로 1로 고정.
-		GM->NotifyPlayerLevelUp(GetOwningPlayerController(), 1);
+			// MaxEXP의 20%만큼 채움. 5번 누르면 레벨업 1회 발생.
+		PC->AddEXP(PC->MaxEXP * 0.2f);
 	}
 }
 

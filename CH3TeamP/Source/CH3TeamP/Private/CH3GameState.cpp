@@ -13,6 +13,8 @@ void ACH3GameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 
 	DOREPLIFETIME(ACH3GameState, PlayState);
 	DOREPLIFETIME(ACH3GameState, TotalScore);
+		// 추가 : UI담당 - 김민석 : [필수과제] 킬 카운트를 위해 수정.(07/23)
+	DOREPLIFETIME(ACH3GameState, TotalKillCount);
 	DOREPLIFETIME(ACH3GameState, CurrentWave);
 	DOREPLIFETIME(ACH3GameState, TotalWaves);
 	DOREPLIFETIME(ACH3GameState, EnemiesRemaining);
@@ -45,6 +47,22 @@ void ACH3GameState::SetTotalScore(int32 NewScore)
 void ACH3GameState::AddScore(int32 Delta)
 {
 	SetTotalScore(TotalScore + Delta);
+}
+
+	// 추가 : UI담당 - 김민석 : [필수과제] 킬 카운트를 위해 수정.(07/23)
+void ACH3GameState::SetTotalKillCount(int32 NewCount)
+{
+	if (TotalKillCount == NewCount)
+	{
+		return;
+	}
+	TotalKillCount = NewCount;
+	OnKillCountChanged.Broadcast(TotalKillCount);
+}
+
+void ACH3GameState::AddKillCount(int32 Delta)
+{
+	SetTotalKillCount(TotalKillCount + Delta);
 }
 
 void ACH3GameState::SetWave(int32 InCurrentWave, int32 InTotalWaves)
@@ -81,6 +99,12 @@ void ACH3GameState::OnRep_PlayState()
 void ACH3GameState::OnRep_TotalScore()
 {
 	OnScoreChanged.Broadcast(TotalScore);
+}
+
+	// 추가 : UI담당 - 김민석 : [필수과제] 킬 카운트를 위해 수정.(07/23)
+void ACH3GameState::OnRep_TotalKillCount()
+{
+	OnKillCountChanged.Broadcast(TotalKillCount);
 }
 
 void ACH3GameState::OnRep_Wave()

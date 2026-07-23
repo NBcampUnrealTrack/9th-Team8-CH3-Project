@@ -77,6 +77,33 @@ public:
 	
 	
 	
+	
+		//======= 맵 경계 경고 오버레이. WBP의 같은 이름 Image와 연결. 평소엔 숨김.
+	UPROPERTY(meta = (BindWidgetOptional))
+	class UImage* BoundaryWarningVignette;
+
+		// 안전 구역 사각형. 팀원이 배치한 차단 액터 위치 기준으로 측정한 값.
+		// (실제 벽 위치와 어긋나면 여기 숫자만 조정하면 됨 — 코드 구조는 안 바뀜)
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary")
+	float BoundaryMinX = -3000.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary")
+	float BoundaryMaxX = 5600.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary")
+	float BoundaryMinY = -5000.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary")
+	float BoundaryMaxY = 4000.0f;
+
+	// 이 거리(cm)만큼 안쪽부터 경고가 서서히 시작됨. 벽에 닿기 전에 미리 알리기 위함.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary")
+	float BoundaryWarningMargin = 500.f;
+	
+	
+	
+	
+	
 	/* 아직 넣지 않을 부분
 	//------GameState지만, 넣을지 미확정 부분-----------------
  
@@ -125,6 +152,22 @@ public:
 		// 스태미나바
 	UPROPERTY(meta = (BindWidgetOptional))
 	UProgressBar* StaminaBar;
+	
+	
+		// 경험치 변경 : 경험치바 갱신. 소유자: PlayerCharacter
+	UFUNCTION() void HandleEXPChanged(float NewCurrentEXP, float NewMaxEXP);
+
+		// 경험치바. WBP의 EXPbar와 이름 일치 필요.
+	UPROPERTY(meta = (BindWidgetOptional))
+	UProgressBar* EXPBar;
+
+		// 레벨업 : 레벨 텍스트 갱신. 소유자: PlayerCharacter
+	UFUNCTION() void HandleLevelUp(int32 NewLevel);
+
+		// 레벨 텍스트. WBP에 있으면 이름 맞춰 연결(없으면 null로 안전하게 무시됨).
+	UPROPERTY(meta = (BindWidgetOptional))
+	UTextBlock* LevelText;
+	
  
 		// 탄약 변경(발사/재장전) : 탄약 텍스트 갱신. 소유자: (확인필요)PlayerCharacter
 	UFUNCTION() void HandleAmmoChanged(int32 CurrentAmmo, int32 MaxAmmo);
@@ -141,6 +184,34 @@ public:
 		//총알 갯수.
 	UPROPERTY(meta = (BindWidgetOptional))
 	UTextBlock* AmmoText;
+	
+	
+		// 현재 탄종 아이콘. 총알 수 아래에 표시.
+	UPROPERTY(meta = (BindWidgetOptional))
+	UImage* BulletTypeIcon;
+
+		// 탄종별 텍스처. WBP Class Defaults에서 지정.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Ammo")
+	UTexture2D* NormalAmmoTexture;
+
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Ammo")
+	UTexture2D* PiercingAmmoTexture;
+
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Ammo")
+	UTexture2D* ExplosiveAmmoTexture;
+	
+	
+		// 정조준 시 스코프 오버레이. 평소엔 숨김.
+	UPROPERTY(meta = (BindWidgetOptional))
+	UImage* ScopeOverlay;
+	
+	
+	
+		// 벽에 붙었을 때의 최대 어둡기. 1.0(완전 검정)이면 앞이 안 보여서
+		// 벽에 막힌 채 돌아갈 방향을 못 찾게 됨. 상한을 둬서 시야를 남긴다.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float BoundaryWarningMaxAlpha = 0.7f;
+	
 	
 private:
 		// 폴링 대상 캐릭터 캐시.
@@ -167,6 +238,10 @@ private:
 
 		// 맥동 애니메이션용 누적 시간. 프레임을 넘어 유지돼야 해서 멤버로 둠.
 	float PulseAccumulator = 0.0f;
+	
+	
+		// 맵 경계 이탈 경고 갱신. 매 프레임 폴링에서 호출. (저체력 연출과 같은 패턴)
+	void UpdateBoundaryWarning(const FVector& PlayerLocation);
 	
  
  /* 테스트 함수(캐릭터 연결 뒤) 만약 연결이 안 된 코드는 이걸로 대체하기 위해.
@@ -225,6 +300,14 @@ protected:
 		// 점수 표시 (아직 WBP에 없어도 되는 선택적 위젯)
 	UPROPERTY(meta = (BindWidgetOptional))
 	class UTextBlock* ScoreText;
+	
+	
+		// 킬 카운트 변경 : 누적 처치 수 텍스트 갱신. 소유자: GameState
+	UFUNCTION() void HandleKillCountChanged(int32 NewKillCount);
+
+		// 누적 처치 수 표시. WBP에 있으면 이름 맞춰 연결.
+	UPROPERTY(meta = (BindWidgetOptional))
+	class UTextBlock* KillCountText;
 
 private:
 		// Quest_details 조합용 캐시 (남은시간/남은적이 서로 다른 이벤트로 오기 때문에 저장해둠)

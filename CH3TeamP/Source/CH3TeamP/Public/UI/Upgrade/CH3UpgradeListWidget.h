@@ -32,6 +32,11 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "CH3|Upgrade")
 	TMap<EUpgradeType, UTexture2D*> UpgradeIcons;
 	
+		// 창이 열려 있는 동안 마우스 클릭이 게임으로 새어나가지 않게 막기.
+		// 이걸 안 놓으니까 인벤 내 아이템 건들 때마다 타타타타탕!
+		// (FInputModeGameAndUI는 UI가 안 잡은 클릭을 게임으로 흘려보내기 때문)
+	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+	
 	
 	
 	

@@ -195,6 +195,10 @@ private:
 
 	void TickWaveTimer();
 	TArray<EUpgradeType> RollUpgradeCards() const;
+		// UI담당 - 김민석 : 탄환 변경 건을 위해 수정.(07/23)
+		// 한 줄만 추가.
+		// 탄환 계열 강화인지 판정. 나중에 탄환 종류가 늘어나면 이 함수 한 곳만 고치면 됨.
+	static bool IsAmmoUpgrade(EUpgradeType Type);	
 	int32 GetScoreForEnemy(EEnemyType EnemyType) const;
 
 	ACH3GameState* GetCH3GameState() const;
@@ -215,6 +219,12 @@ private:
 	EGamePlayState StateBeforePause = EGamePlayState::WaveInProgress;
 	TWeakObjectPtr<AController> PendingUpgradeController;
 	TArray<EUpgradeType> CurrentUpgradeCards;
+	
+	
+		// UI 담당 - 김민석 추가 부분(07/23)
+		// 마지막으로 선택된 탄환 강화. 같은 탄환이 다음 카드에 다시 나오지 않게 하는 용도.
+		// MAX = 아직 탄환을 고른 적 없음. (Hidden 값이라 후보 풀에 절대 안 들어가서 센티널로 안전)
+	EUpgradeType LastChosenAmmo = EUpgradeType::MAX;
 
 	FTimerHandle IntermissionTimerHandle;
 	FTimerHandle WaveTimerHandle;
