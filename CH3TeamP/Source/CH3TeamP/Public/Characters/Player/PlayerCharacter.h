@@ -179,8 +179,6 @@ protected:
 	// 입력 핸들러
 	void InputActionRiple(const struct FInputActionValue& Value);
 	
-	void InputActionFire(const struct FInputActionValue& Value);
-	
 	// 착지 시각 기록 → 착지 직후 0.2초 점프 잠금
 	virtual void Landed(const FHitResult& Hit) override;
 
