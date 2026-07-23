@@ -425,6 +425,10 @@ void APlayerCharacter::EquipWeapon(class UWeaponDataAsset* WeaponData)
 
 void APlayerCharacter::InputActionRiple(const FInputActionValue& Value)  { TakeRipleGun(); }
 
+void  APlayerCharacter::InputActionFire(const FInputActionValue& Value)
+{
+}
+
 void APlayerCharacter::FireGun()
 {
 	if (bIsReloading)
@@ -529,14 +533,12 @@ void APlayerCharacter::Reload(const FInputActionValue& Value)
 
 void APlayerCharacter::FinishReload()
 {
+	GetWorldTimerManager().ClearTimer(ReloadTimerHandle);
+	
 	CurrentAmmoCount = MaxAmmo;
 	bIsReloading = false;
 
 	UE_LOG(LogTemp, Warning, TEXT("Reload Finish"));
-}
-
-void APlayerCharacter::InputActionFire(const FInputActionValue& Value)
-{
 }
 
 void APlayerCharacter::OnDamage(int32 Amount)
@@ -635,6 +637,8 @@ void APlayerCharacter::FireNormal()
 		if (ABaseEnemy* Enemy = Cast<ABaseEnemy>(Hit.GetActor()))
 		{
 			Enemy->TakeEnemyDamage((int32)Damage);
+			OnDamageDealt.Broadcast(Damage, Hit.ImpactPoint, false);
+
 		}
 		
 		// 임팩트 이펙트 — 맞은 지점에 한 번 스폰 (Cascade)
@@ -690,6 +694,8 @@ void APlayerCharacter::FirePiercing()
 		if (Enemy)
 		{
 			Enemy->TakeEnemyDamage((int32)Damage);
+			OnDamageDealt.Broadcast(Damage, Hit.ImpactPoint, false);
+
 		}
 
 		if (Hit.bBlockingHit && !Enemy)
@@ -778,8 +784,12 @@ void APlayerCharacter::FireExplosive()
 		if (ABaseEnemy* Enemy = Cast<ABaseEnemy>(HitActor))
 		{
 			Enemy->TakeEnemyDamage((int32)Damage);
+			OnDamageDealt.Broadcast(Damage, Hit.ImpactPoint, false);
+
 		}
 	}
+	
+	
 }
 
 float APlayerCharacter::GetCurrentDamage() const
@@ -819,14 +829,17 @@ void APlayerCharacter::ApplyUpgrade(EUpgradeType ChosenUpgrade, AController* For
 		UE_LOG(LogTemp, Log, TEXT("공격력 강화 완료! Normal: %.1f, Piercing: %.1f, Explosive: %.1f"), 
 			   NormalDamage, PiercingDamage, ExplosiveDamage);
 		break;
-
+		
 	case EUpgradeType::FireRateUp:
-		// [연사 속도 20% 증가] 초당 발사 수 기준 1.20배 증가 (발사 간격이 짧아짐)
-		FireRate *= 1.20f;
+
+		FireRate *= 1.2f;
+
 		if (GetWorldTimerManager().IsTimerActive(FireTimerHandle))
 		{
-			StartFire(); 
+			StopFire();
+			StartFire();
 		}
+
 		break;
 
 	case EUpgradeType::MoveSpeedUp:
@@ -862,12 +875,6 @@ void APlayerCharacter::ApplyUpgrade(EUpgradeType ChosenUpgrade, AController* For
 			
 			UE_LOG(LogTemp, Log, TEXT("스태미나 +20 증가 완료! (현재 최대 스태미나: %.1f)"), StaminaComp->GetMaxStamina());
 		}
-		break;
-
-	case EUpgradeType::ReloadSpeedUp:
-		// [장전 애니메이션 속도 20% 증가 & 장전 시간 20% 단축]
-		ReloadAnimSpeed += 0.2f; 
-		ReloadTime = FMath::Max(0.5f, ReloadTime * 0.8f);
 		break;
 
 	case EUpgradeType::Heal:

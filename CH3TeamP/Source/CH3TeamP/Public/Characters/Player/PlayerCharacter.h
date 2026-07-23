@@ -12,6 +12,8 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEXPChangedSignature, float, NewCurrentEXP, float, NewMaxEXP);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLevelUpSignature, int32, NewLevel);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnDamageDealtSignature,
+float, DamageAmount, FVector, HitLocation, bool, bIsCritical);
 
 class UCH3StaminaComponent;
 
@@ -123,6 +125,9 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Level System|Events")
 	FOnLevelUpSignature OnLevelUp;
 	
+	UPROPERTY(BlueprintAssignable, Category = "Combat|Events")
+	FOnDamageDealtSignature OnDamageDealt; 
+	
 	// 경험치(레벨업)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Level System")
 	int32 CurrentLevel = 1;
@@ -178,9 +183,8 @@ protected:
 
 	// 입력 핸들러
 	void InputActionRiple(const struct FInputActionValue& Value);
-	
-	void InputActionFire(const struct FInputActionValue& Value);
-	
+	void InputActionFire(const FInputActionValue& Value);
+
 	// 착지 시각 기록 → 착지 직후 0.2초 점프 잠금
 	virtual void Landed(const FHitResult& Hit) override;
 
