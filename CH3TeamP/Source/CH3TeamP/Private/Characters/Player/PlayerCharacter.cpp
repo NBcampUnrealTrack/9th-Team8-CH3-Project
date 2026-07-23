@@ -583,8 +583,31 @@ void APlayerCharacter::OnHitAnimation()
 
 void APlayerCharacter::OnDeathAnimation()
 {
+	if (bIsDead)
+		return;
+
+	bIsDead = true;
+
+	// 사망 애니메이션
 	if (UPlayerAnimInstance* A = Cast<UPlayerAnimInstance>(GetMesh()->GetAnimInstance()))
+	{
 		A->PlayDeathMontage(TEXT("DeathStart"));
+	}
+
+	// 입력 차단
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		DisableInput(PC);
+	}
+
+	// 이동 중지
+	GetCharacterMovement()->DisableMovement();
+
+	// 충돌 제거
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	// 3초 후 제거
+	SetLifeSpan(3.f);
 }
 
 void APlayerCharacter::InputActionTestDamage(const FInputActionValue& Value)
