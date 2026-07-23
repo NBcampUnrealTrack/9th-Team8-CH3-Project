@@ -670,28 +670,31 @@ void APlayerCharacter::FirePiercing()
 	if (!bHit)
 		return;
 
+	float Damage = GetCurrentDamage();
+
 	for (const FHitResult& Hit : Hits)
 	{
-		AActor* HitActor = Hit.GetActor();
-		
-		if (!HitActor)
-			continue;
-		
-		float Damage = GetCurrentDamage();
-
-		// 몬스터라면 데미지 적용
-		if (ABaseEnemy* Enemy = Cast<ABaseEnemy>(HitActor))
-		{
-			Enemy->TakeEnemyDamage((int32)Damage);
-		}	
-		
-		// 맞은 위치마다 이펙트
+		// 맞은 위치에는 무조건 이펙트 생성
 		if (ImpactEffect)
 		{
 			UGameplayStatics::SpawnEmitterAtLocation(
 				GetWorld(),
 				ImpactEffect,
 				Hit.ImpactPoint);
+		}
+
+		AActor* HitActor = Hit.GetActor();
+
+		ABaseEnemy* Enemy = Cast<ABaseEnemy>(HitActor);
+
+		if (Enemy)
+		{
+			Enemy->TakeEnemyDamage((int32)Damage);
+		}
+
+		if (Hit.bBlockingHit && !Enemy)
+		{
+			break;
 		}
 	}
 }
@@ -718,22 +721,30 @@ void APlayerCharacter::FireExplosive()
 		return;
 
 	// 폭발 이펙트
-	if (ImpactEffect)
+	if (ExplosionImpactEffect)
 	{
 		UGameplayStatics::SpawnEmitterAtLocation(
 			GetWorld(),
-			ImpactEffect,
+			ExplosionImpactEffect,
 			Hit.ImpactPoint);
 	}
 	
-	// 폭발 소리
-	if (ExplosionSound)
-	{
-		UGameplayStatics::PlaySoundAtLocation(
-			GetWorld(),
-			ExplosionSound,
-			Hit.ImpactPoint);
-	}
+	FTimerHandle Timer;
+
+	GetWorldTimerManager().SetTimer(
+		Timer,
+		[this, Hit]()
+		{
+			if (ExplosionSound)
+			{
+				UGameplayStatics::PlaySoundAtLocation(
+					GetWorld(),
+					ExplosionSound,
+					Hit.ImpactPoint);
+			}
+		},
+		0.3f,
+		false);
 
 	float ExplosionRadius = 300.f;
 
@@ -752,6 +763,8 @@ void APlayerCharacter::FireExplosive()
 	if (!bOverlap)
 		return;
 
+	float Damage = GetCurrentDamage();
+	
 	for (const FOverlapResult& Result : Overlaps)
 	{
 		AActor* HitActor = Result.GetActor();
@@ -761,8 +774,6 @@ void APlayerCharacter::FireExplosive()
 
 		if (HitActor == this)
 			continue;
-
-		float Damage = GetCurrentDamage();
 		
 		if (ABaseEnemy* Enemy = Cast<ABaseEnemy>(HitActor))
 		{
@@ -834,11 +845,13 @@ void APlayerCharacter::ApplyUpgrade(EUpgradeType ChosenUpgrade, AController* For
 	case EUpgradeType::ExplosiveAmmo:
 		// [폭발탄 전환] 현재 탄종을 폭발탄(Explosive)으로 변경
 		CurrentAmmoType = EAmmoType::Explosive;
+		
 		break;
 
 	case EUpgradeType::PiercingAmmo:
 		// [관통탄 전환] 현재 탄종을 관통탄(Piercing)으로 변경
 		CurrentAmmoType = EAmmoType::Piercing;
+		
 		break;
 
 	case EUpgradeType::StaminaUp:

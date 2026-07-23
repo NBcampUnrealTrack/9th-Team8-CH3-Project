@@ -82,11 +82,15 @@ public:
 	UPROPERTY(EditAnywhere, Category="Effect")
 	class UParticleSystem* ImpactEffect;
 	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Effect")
+	UParticleSystem* ExplosionImpactEffect;
+	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Stamina")
 	UCH3StaminaComponent* StaminaComp;
 	
 	UFUNCTION(BlueprintCallable, Category="Damage")
 	void OnDamage(int32 Amount);
+	
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Sound")
 	USoundBase* FireSound;
