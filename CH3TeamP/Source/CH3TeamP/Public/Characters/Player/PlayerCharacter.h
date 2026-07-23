@@ -150,6 +150,7 @@ public:
 	UFUNCTION()
 	void ApplyUpgrade(EUpgradeType ChosenUpgrade, AController* ForPlayer);
 	
+	void OnDeathAnimation();
 
 protected:
 	virtual void BeginPlay() override;
@@ -198,7 +199,6 @@ protected:
 	
 	void OnFireAnimation();
 	void OnHitAnimation();
-	void OnDeathAnimation();
 
 	void InputActionTestDamage(const struct FInputActionValue& Value);
 	void InputActionTestDeath(const struct FInputActionValue& Value);
@@ -256,8 +256,8 @@ private:
 	void FireNormal();
 	void FirePiercing();
 	void FireExplosive();
-
 	
+	bool bIsDead = false;
 	
 };
 	

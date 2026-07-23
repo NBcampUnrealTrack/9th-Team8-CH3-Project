@@ -1,4 +1,5 @@
 #include "Components/HealthComponent.h"
+#include "Characters/Player/PlayerCharacter.h"
 
 UHealthComponent::UHealthComponent()
 {
@@ -29,6 +30,15 @@ void UHealthComponent::ApplyDamage(int32 Amount)
 	if (CurrentHP <= 0)
 	{
 		bIsDead = true;
+
+		AActor* Owner = GetOwner();
+		if (Owner)
+		{
+			if (APlayerCharacter* Player = Cast<APlayerCharacter>(Owner))
+			{
+				Player->OnDeathAnimation();
+			}
+		}
 	}
 }
 
