@@ -425,6 +425,10 @@ void APlayerCharacter::EquipWeapon(class UWeaponDataAsset* WeaponData)
 
 void APlayerCharacter::InputActionRiple(const FInputActionValue& Value)  { TakeRipleGun(); }
 
+void  APlayerCharacter::InputActionFire(const FInputActionValue& Value)
+{
+}
+
 void APlayerCharacter::FireGun()
 {
 	if (bIsReloading)
@@ -633,6 +637,8 @@ void APlayerCharacter::FireNormal()
 		if (ABaseEnemy* Enemy = Cast<ABaseEnemy>(Hit.GetActor()))
 		{
 			Enemy->TakeEnemyDamage((int32)Damage);
+			OnDamageDealt.Broadcast(Damage, Hit.ImpactPoint, false);
+
 		}
 		
 		// 임팩트 이펙트 — 맞은 지점에 한 번 스폰 (Cascade)
@@ -688,6 +694,8 @@ void APlayerCharacter::FirePiercing()
 		if (Enemy)
 		{
 			Enemy->TakeEnemyDamage((int32)Damage);
+			OnDamageDealt.Broadcast(Damage, Hit.ImpactPoint, false);
+
 		}
 
 		if (Hit.bBlockingHit && !Enemy)
@@ -776,8 +784,12 @@ void APlayerCharacter::FireExplosive()
 		if (ABaseEnemy* Enemy = Cast<ABaseEnemy>(HitActor))
 		{
 			Enemy->TakeEnemyDamage((int32)Damage);
+			OnDamageDealt.Broadcast(Damage, Hit.ImpactPoint, false);
+
 		}
 	}
+	
+	
 }
 
 float APlayerCharacter::GetCurrentDamage() const
