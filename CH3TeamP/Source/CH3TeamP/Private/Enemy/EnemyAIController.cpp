@@ -42,6 +42,10 @@ void AEnemyAIController::OnPossess(APawn* InPawn)
     // 실제 빙의된 Pawn을 ABaseEnemy로 변환
     ControlledEnemy = Cast<ABaseEnemy>(InPawn);
 
+    // 새로운 적에 빙의했으므로 이동·공격 시간을 초기화
+    LastMoveRequestTime = -1000.0f;
+    LastAttackTime = -1000.0f;
+
     if (GEngine)
     {
         if (ControlledEnemy)
@@ -78,7 +82,7 @@ void AEnemyAIController::Tick(float DeltaTime)
     Super::Tick(DeltaTime);
 
     /*
-     * 1. 현재 조종 중인 Pawn 확인
+     * 1. 현재 AIController가 조종 중인 Pawn 확인
      */
     APawn* ControlledPawn = GetPawn();
 
@@ -101,8 +105,8 @@ void AEnemyAIController::Tick(float DeltaTime)
     }
 
     /*
-     * 2. 조종 중인 Pawn이 변경되었거나
-     * ControlledEnemy가 설정되지 않았다면 다시 변환
+     * 2. 조종 중인 Pawn이 바뀌었거나
+     * ControlledEnemy가 설정되지 않았다면 다시 확인
      */
     if (!ControlledEnemy || ControlledEnemy != ControlledPawn)
     {
@@ -193,15 +197,28 @@ void AEnemyAIController::Tick(float DeltaTime)
      */
     if (DistanceToPlayer > EnemyAttackRange)
     {
-        /*
-         * Chase 상태에 처음 들어갈 때만 MoveToActor 호출
-         *
-         * MoveToActor는 움직이는 TargetPlayer의 위치를
-         * 계속 갱신하므로 매 프레임 다시 호출할 필요가 없습니다.
-         */
         if (ControlledEnemy->GetEnemyState() != EEnemyState::Chase)
         {
             ControlledEnemy->SetEnemyState(EEnemyState::Chase);
+        }
+
+        const float CurrentTime = GetWorld()->GetTimeSeconds();
+
+        /*
+         * 이동 중이 아니면 0.5초마다 이동을 다시 요청합니다.
+         *
+         * 적이 생성된 첫 프레임에 NavMesh에 안착하지 못해서
+         * 이동 요청이 실패해도 이후 자동으로 다시 시도합니다.
+         */
+        const bool bIsCurrentlyMoving =
+            GetMoveStatus() == EPathFollowingStatus::Moving;
+
+        const bool bCanRetryMove =
+            CurrentTime - LastMoveRequestTime >= 0.5f;
+
+        if (!bIsCurrentlyMoving && bCanRetryMove)
+        {
+            LastMoveRequestTime = CurrentTime;
 
             const float MoveAcceptanceRadius =
                 FMath::Max(50.0f, EnemyAttackRange * 0.4f);
@@ -234,7 +251,7 @@ void AEnemyAIController::Tick(float DeltaTime)
             case EPathFollowingRequestResult::Failed:
             default:
                 MoveResultText =
-                    TEXT("MoveTo: FAILED");
+                    TEXT("MoveTo: FAILED - Retrying");
 
                 MoveResultColor = FColor::Red;
                 break;
@@ -243,8 +260,8 @@ void AEnemyAIController::Tick(float DeltaTime)
             if (GEngine)
             {
                 GEngine->AddOnScreenDebugMessage(
-                    -1,
-                    5.0f,
+                    2001,
+                    0.5f,
                     MoveResultColor,
                     MoveResultText
                 );
