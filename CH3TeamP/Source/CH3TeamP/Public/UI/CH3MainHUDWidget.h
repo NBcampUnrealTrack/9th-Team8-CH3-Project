@@ -82,24 +82,32 @@ public:
 	UPROPERTY(meta = (BindWidgetOptional))
 	class UImage* BoundaryWarningVignette;
 
-		// 안전 구역 사각형. 팀원이 배치한 차단 액터 위치 기준으로 측정한 값.
+		// 안전 구역 사각형. 팀원이 배치한 차단 액터 위치 기준으로 측정한 값. <- 취소. 레벨이 기울어짐.
 		// (실제 벽 위치와 어긋나면 여기 숫자만 조정하면 됨 — 코드 구조는 안 바뀜)
+		// 안전 구역 원형 경계. 레벨이 회전되어 있어 사각형보다 원형이 적합. 은 무슨, 그냥 사각형 하고 각도 조절하기.
 	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary")
-	float BoundaryMinX = -3000.0f;
+	FVector2D BoundaryCenter = FVector2D(89.58f, -155.22f);
+
+	// 레벨 바닥 액터의 Yaw 회전값 그대로.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary")
+	float BoundaryRotationYaw = 30.0f;
+	
+	// 회전 안 된 상태 기준 가로/세로 절반 길이.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary")
+	float BoundaryHalfWidth = 6000.f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary")
-	float BoundaryMaxX = 5600.0f;
+	float BoundaryHalfHeight = 6000.f;
 
-	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary")
-	float BoundaryMinY = -5000.0f;
-
-	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary")
-	float BoundaryMaxY = 4000.0f;
-
-	// 이 거리(cm)만큼 안쪽부터 경고가 서서히 시작됨. 벽에 닿기 전에 미리 알리기 위함.
 	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary")
 	float BoundaryWarningMargin = 500.f;
 	
+	// 벽에 붙었을 때의 최대 어둡기. 1.0(완전 검정)이면 앞이 안 보여서
+	// 벽에 막힌 채 돌아갈 방향을 못 찾게 됨. 상한을 둬서 시야를 남긴다.
+	// 이 거리(cm)만큼 안쪽부터 경고가 서서히 시작됨. 벽에 닿기 전에 미리 알리기 위함.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float BoundaryWarningMaxAlpha = 0.8f;
+
 	
 	
 	
@@ -207,10 +215,7 @@ public:
 	
 	
 	
-		// 벽에 붙었을 때의 최대 어둡기. 1.0(완전 검정)이면 앞이 안 보여서
-		// 벽에 막힌 채 돌아갈 방향을 못 찾게 됨. 상한을 둬서 시야를 남긴다.
-	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary", meta = (ClampMin = "0.0", ClampMax = "1.0"))
-	float BoundaryWarningMaxAlpha = 0.7f;
+		
 	
 	
 private:

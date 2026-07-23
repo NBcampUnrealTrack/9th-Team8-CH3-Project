@@ -721,22 +721,30 @@ void UCH3MainHUDWidget::UpdateBoundaryWarning(const FVector& PlayerLocation)
 	const float PlayerX = static_cast<float>(PlayerLocation.X);
 	const float PlayerY = static_cast<float>(PlayerLocation.Y);
 
-	// 네 벽까지의 거리. 안쪽이면 양수, 넘으면 음수.
-	// [변경] 기존 Max3(0.f, ...) 방식은 "얼마나 벗어났나"만 남기고 "얼마나 안쪽인가"를
-	//        전부 0으로 뭉갰음. 플레이어가 벽에 막혀 못 나가는 이상 그 값은 항상 0이라
-	//        경고 강도를 만들 수 없었다. 그래서 부호 있는 거리로 교체.
-	const float DistMinX = PlayerX - BoundaryMinX;
-	const float DistMaxX = BoundaryMaxX - PlayerX;
-	const float DistMinY = PlayerY - BoundaryMinY;
-	const float DistMaxY = BoundaryMaxY - PlayerY;
+	
+	// 중심 기준 상대 좌표.
+	const float RelX = PlayerX - BoundaryCenter.X;
+	const float RelY = PlayerY - BoundaryCenter.Y;
+	
+	
+	// 레벨 회전각만큼 반대로 회전시켜, 축 정렬된 사각형처럼 만든다.
+	const float RadAngle = FMath::DegreesToRadians(-BoundaryRotationYaw);
+	const float LocalX = RelX * FMath::Cos(RadAngle) - RelY * FMath::Sin(RadAngle);
+	const float LocalY = RelX * FMath::Sin(RadAngle) + RelY * FMath::Cos(RadAngle);
 
-	// 가장 가까운 벽까지의 거리. 이 값 하나로 강도를 정한다.
-	const float NearestDist = FMath::Min(
-		FMath::Min(DistMinX, DistMaxX),
-		FMath::Min(DistMinY, DistMaxY));
+	// 이제 LocalX/LocalY는 "회전 안 된 사각형" 기준 좌표. 보통 사각형 판정 적용.
+	const float DistToRightEdge = BoundaryHalfWidth - LocalX;
+	const float DistToLeftEdge = BoundaryHalfWidth + LocalX;
+	const float DistToTopEdge = BoundaryHalfHeight - LocalY;
+	const float DistToBottomEdge = BoundaryHalfHeight + LocalY;
+	
 
-	// 마진보다 안쪽이면 경고 없음. Collapsed로 렌더링 자체를 생략.
-	if (NearestDist >= BoundaryWarningMargin)
+	const float DistToEdge = FMath::Min(
+		FMath::Min(DistToRightEdge, DistToLeftEdge),
+		FMath::Min(DistToTopEdge, DistToBottomEdge));
+	
+	
+	if (DistToEdge >= BoundaryWarningMargin)
 	{
 		BoundaryWarningVignette->SetVisibility(ESlateVisibility::Collapsed);
 		return;
@@ -750,7 +758,7 @@ void UCH3MainHUDWidget::UpdateBoundaryWarning(const FVector& PlayerLocation)
 	const float Intensity = FMath::GetMappedRangeValueClamped(
 		FVector2D(BoundaryWarningMargin, 0.f),
 		FVector2D(0.f, 1.f),
-		NearestDist);
+		DistToEdge);
 
 	BoundaryWarningVignette->SetColorAndOpacity(
 		FLinearColor(0.f, 0.f, 0.f, Intensity * BoundaryWarningMaxAlpha));
