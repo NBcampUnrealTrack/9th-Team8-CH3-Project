@@ -370,6 +370,12 @@ void ACH3TeamProjectGameMode::NotifyEnemyKilled(EEnemyType EnemyType, AControlle
 	{
 		GS->SetEnemiesRemaining(EnemiesAlive);
 	}
+	
+		// 추가 : UI담당 - 김민석 : [필수과제] 킬 카운트를 위해 수정.(07/23)
+		// UI에 처치 사실을 방송. 킬 피드 한 줄 표시용.
+		// 점수/카운트는 GameState가 값을 들고 있지만, 킬 피드는 "순간의 사건"이라
+		// 저장할 값이 없어 GameMode가 직접 방송한다.
+	OnEnemyKilledNotify.Broadcast(EnemyType);
 
 	UE_LOG(LogCH3GameMode, Verbose, TEXT("적 처치(type=%d), +%d점, 현재 생존 적=%d"),
 		(int32)EnemyType, Score, EnemiesAlive);

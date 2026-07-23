@@ -26,6 +26,9 @@ class IConsoleObject;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnUpgradeCardsPresented, const TArray<EUpgradeType>&, Cards);
 // 강화가 선택 확정되어 실제 효과를 적용해야 할 때 전투 로직으로 보내는 이벤트
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnUpgradeConfirmed, EUpgradeType, ChosenUpgrade, AController*, ForPlayer);
+	// 추가 : UI담당 - 김민석 : [필수과제] 킬 피드를 위해 수정.(07/23)
+	// 적 처치 확정 시 UI로 보내는 이벤트 (킬 피드 표시용)
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEnemyKilledNotify, EEnemyType, KilledEnemyType);
 
 UCLASS(minimalapi)
 class ACH3TeamProjectGameMode : public AGameModeBase
@@ -101,6 +104,10 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "CH3|Events")
 	FOnUpgradeConfirmed OnUpgradeConfirmed;
+	
+		// 추가 : UI담당 - 김민석 : [필수과제] 킬 카운트를 위해 수정.(07/23)
+	UPROPERTY(BlueprintAssignable, Category = "CH3|Events")
+	FOnEnemyKilledNotify OnEnemyKilledNotify;
 
 protected:
 	virtual void BeginPlay() override;

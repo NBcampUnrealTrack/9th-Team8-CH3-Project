@@ -151,6 +151,9 @@ void UCH3MainHUDWidget::BindDelegates()
 	if (ACH3TeamProjectGameMode* GM = GetWorld()->GetAuthGameMode<ACH3TeamProjectGameMode>())
 	{
 		GM->OnUpgradeConfirmed.AddDynamic(this, &UCH3MainHUDWidget::HandleUpgradeAcquired);
+		
+			// [추가] 적 처치 델리게이트 부분. 방송 구독 — 킬 피드 한 줄 표시용.
+		GM->OnEnemyKilledNotify.AddDynamic(this, &UCH3MainHUDWidget::HandleEnemyKilled);
 	}
 	
 
