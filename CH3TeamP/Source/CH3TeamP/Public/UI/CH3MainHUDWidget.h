@@ -291,6 +291,26 @@ protected:
  
 	UPROPERTY()
 	UCH3MinimapMarkerWidget* PlayerMarker;
+	
+		// 적 미니맵 마커. 살아있는 적 하나당 위젯 하나씩 매칭.
+	UPROPERTY()
+	TMap<ABaseEnemy*, UCH3MinimapMarkerWidget*> EnemyMarkers;
+
+		// 적 마커로 쓸 위젯 클래스. 플레이어 마커와 별도로 지정 가능(다른 색 등).
+	UPROPERTY(EditAnywhere, Category = "Minimap")
+	TSubclassOf<UCH3MinimapMarkerWidget> EnemyMarkerWidgetClass;
+
+	// [추가] 일반 적과 보스의 마커 색 구분.
+	UPROPERTY(EditAnywhere, Category = "Minimap")
+	FLinearColor NormalEnemyMarkerColor = FLinearColor::Red;
+
+	UPROPERTY(EditAnywhere, Category = "Minimap")
+	FLinearColor BossMarkerColor = FLinearColor(1.f, 0.5f, 0.f);   // 주황 계열, 눈에 확 띄게
+	
+	
+		// 매 프레임 전체 탐색은 낭비라 이 주기(초)마다만 몬스터 목록을 다시 훑는다.
+	UPROPERTY(EditAnywhere, Category = "Minimap")
+	float EnemyScanInterval = 0.5f;
  
 	FVector2D WorldToMinimapPosition(const FVector& WorldLocation);
 	
@@ -323,8 +343,11 @@ private:
 	float CachedTimeRemaining = 0.f;
 	int32 CachedEnemiesRemaining = 0;
 	
-	
-	
+		// 적 마커
+	float EnemyScanElapsed = 0.f;
+
+	// 살아있는 적 목록을 다시 훑어 마커를 생성/제거하고 위치를 갱신.
+	void UpdateEnemyMarkers(float DeltaTime);
 	
 	// 전투 피드백 위젯 부분.
 public:
@@ -360,7 +383,8 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Feedback")
 	FLinearColor HitMarkerCriticalColor = FLinearColor::Red;
 
-	
+	// 월드 좌표를 미니맵 캔버스 오프셋 좌표로 변환하는 공통 함수
+	FVector2D ConvertWorldToMinimapOffset(const FVector& WorldLocation, const FVector2D& TargetCanvasSize);
 	
 private:
 	

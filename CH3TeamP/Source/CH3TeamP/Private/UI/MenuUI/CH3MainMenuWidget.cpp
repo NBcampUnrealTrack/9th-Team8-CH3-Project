@@ -1,5 +1,6 @@
 #include "UI/MenuUI/CH3MainMenuWidget.h"
 #include "Components/Button.h"
+#include "UI/Movies/CH3OpeningWidget.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 
@@ -49,8 +50,21 @@ void UCH3MainMenuWidget::OnGameStartClicked()
 		// 게임플레이 레벨을 새로 열기.
 		// CH3TeamProjectGameMode는 AutoStart BeginPlay가 true인 게 기본값.
 		// BeginPlay에서 알아서 StartGame()을 호출하도록. (GameMode 수정 불필요)
-	UGameplayStatics::OpenLevel(this, GameplayLevelName);
-}
+	// [변경] 바로 레벨을 열지 않고, 오프닝 영상 위젯을 먼저 띄운다.
+	// 영상이 끝나면 CH3OpeningWidget이 GameplayLevelName으로 이동한다.
+	if (OpeningWidgetClass)
+	{
+		if (UCH3OpeningWidget* OpeningWidget = CreateWidget<UCH3OpeningWidget>(GetOwningPlayer(), OpeningWidgetClass))
+		{
+			OpeningWidget->NextLevelName = GameplayLevelName;
+			OpeningWidget->AddToViewport(100);
+		}
+	}
+	else
+	{
+		// 오프닝 위젯 클래스가 지정 안 됐으면, 예전처럼 바로 레벨 이동 (안전장치).
+		UGameplayStatics::OpenLevel(this, GameplayLevelName);
+	}}
 
 
 	//세팅 버튼 누를 시.

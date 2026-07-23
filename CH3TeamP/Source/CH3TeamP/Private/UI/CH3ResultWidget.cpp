@@ -30,7 +30,7 @@ void UCH3ResultWidget::ShowResult(bool bIsClear)
 {
 	if (ResultText)
 	{
-		ResultText->SetText(FText::FromString(bIsClear ? TEXT("게임 클리어!") : TEXT("게임 오버")));
+		ResultText->SetText(FText::FromString(bIsClear ? TEXT("생존 성공!") : TEXT("YOU DIED")));
 	}
 
 	if (ResultBackground)

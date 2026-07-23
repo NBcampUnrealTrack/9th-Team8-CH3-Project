@@ -377,7 +377,7 @@ void ACH3TeamProjectGameMode::NotifyEnemyKilled(EEnemyType EnemyType, AControlle
 		// 저장할 값이 없어 GameMode가 직접 방송한다.
 	OnEnemyKilledNotify.Broadcast(EnemyType);
 
-	UE_LOG(LogCH3GameMode, Verbose, TEXT("적 처치(type=%d), +%d점, 현재 생존 적=%d"),
+	UE_LOG(LogCH3GameMode, Warning, TEXT("적 처치(type=%d), +%d점, 현재 생존 적=%d"),
 		(int32)EnemyType, Score, EnemiesAlive);
 
 	// 보스 처치 승리 판정.
