@@ -729,14 +729,22 @@ void APlayerCharacter::FireExplosive()
 			Hit.ImpactPoint);
 	}
 	
-	// 폭발 소리
-	if (ExplosionSound)
-	{
-		UGameplayStatics::PlaySoundAtLocation(
-			GetWorld(),
-			ExplosionSound,
-			Hit.ImpactPoint);
-	}
+	FTimerHandle Timer;
+
+	GetWorldTimerManager().SetTimer(
+		Timer,
+		[this, Hit]()
+		{
+			if (ExplosionSound)
+			{
+				UGameplayStatics::PlaySoundAtLocation(
+					GetWorld(),
+					ExplosionSound,
+					Hit.ImpactPoint);
+			}
+		},
+		0.3f,
+		false);
 
 	float ExplosionRadius = 300.f;
 
