@@ -670,20 +670,25 @@ void APlayerCharacter::FirePiercing()
 	if (!bHit)
 		return;
 
+	float Damage = GetCurrentDamage();
+	
 	for (const FHitResult& Hit : Hits)
 	{
 		AActor* HitActor = Hit.GetActor();
-		
+
 		if (!HitActor)
 			continue;
-		
-		float Damage = GetCurrentDamage();
 
-		// 몬스터라면 데미지 적용
+		if (Hit.bBlockingHit &&
+			!Cast<ABaseEnemy>(HitActor))
+		{
+			break;
+		}
+
 		if (ABaseEnemy* Enemy = Cast<ABaseEnemy>(HitActor))
 		{
-			Enemy->TakeEnemyDamage((int32)Damage);
-		}	
+			Enemy->TakeEnemyDamage((int32)GetCurrentDamage());
+		}
 		
 		// 맞은 위치마다 이펙트
 		if (ImpactEffect)
@@ -752,6 +757,8 @@ void APlayerCharacter::FireExplosive()
 	if (!bOverlap)
 		return;
 
+	float Damage = GetCurrentDamage();
+	
 	for (const FOverlapResult& Result : Overlaps)
 	{
 		AActor* HitActor = Result.GetActor();
@@ -761,8 +768,6 @@ void APlayerCharacter::FireExplosive()
 
 		if (HitActor == this)
 			continue;
-
-		float Damage = GetCurrentDamage();
 		
 		if (ABaseEnemy* Enemy = Cast<ABaseEnemy>(HitActor))
 		{
@@ -834,11 +839,13 @@ void APlayerCharacter::ApplyUpgrade(EUpgradeType ChosenUpgrade, AController* For
 	case EUpgradeType::ExplosiveAmmo:
 		// [폭발탄 전환] 현재 탄종을 폭발탄(Explosive)으로 변경
 		CurrentAmmoType = EAmmoType::Explosive;
+		
 		break;
 
 	case EUpgradeType::PiercingAmmo:
 		// [관통탄 전환] 현재 탄종을 관통탄(Piercing)으로 변경
 		CurrentAmmoType = EAmmoType::Piercing;
+		
 		break;
 
 	case EUpgradeType::StaminaUp:
