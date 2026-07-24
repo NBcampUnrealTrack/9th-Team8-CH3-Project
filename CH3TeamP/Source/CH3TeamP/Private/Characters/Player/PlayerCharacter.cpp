@@ -807,7 +807,8 @@ void APlayerCharacter::FireExplosive()
 		if (ABaseEnemy* Enemy = Cast<ABaseEnemy>(HitActor))
 		{
 			Enemy->TakeEnemyDamage((int32)Damage);
-			OnDamageDealt.Broadcast(Damage, Hit.ImpactPoint, false);
+			OnDamageDealt.Broadcast(Damage, HitActor->GetActorLocation() + FVector(0.f, 0.f, 50.f), false);
+
 
 		}
 	}
