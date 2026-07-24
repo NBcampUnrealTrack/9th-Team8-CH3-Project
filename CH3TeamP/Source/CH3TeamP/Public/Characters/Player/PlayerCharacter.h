@@ -191,12 +191,6 @@ protected:
 
 	float LastLandedTime = -10.f;
 	
-	UPROPERTY(EditAnywhere, Category="Input|Actions")
-	class UInputAction*  TestDamageAction;
-
-	UPROPERTY(EditAnywhere, Category="Input|Actions")
-	class UInputAction*  TestDeathAction;
-	
 	void OnFireAnimation();
 	void OnHitAnimation();
 
