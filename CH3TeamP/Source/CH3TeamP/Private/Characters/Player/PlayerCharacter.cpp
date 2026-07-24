@@ -587,6 +587,11 @@ void APlayerCharacter::OnDeathAnimation()
 		return;
 
 	bIsDead = true;
+	
+	if (ACH3TeamProjectGameMode* GM = Cast<ACH3TeamProjectGameMode>(GetWorld()->GetAuthGameMode()))
+	{
+		GM->NotifyPlayerDied(GetController());
+	}
 
 	// 사망 애니메이션
 	if (UPlayerAnimInstance* A = Cast<UPlayerAnimInstance>(GetMesh()->GetAnimInstance()))

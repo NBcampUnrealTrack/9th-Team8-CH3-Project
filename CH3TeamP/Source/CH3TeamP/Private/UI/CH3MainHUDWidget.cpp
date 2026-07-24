@@ -22,6 +22,11 @@
 #include "CH3GameState.h"   // GameState 바인딩을 위해 include.
 #include "CH3TeamProjectGameMode.h"  //강화 카드 인벤토리를 위해. 
 #include "UI/Upgrade/CH3UpgradeListWidget.h"
+#include "Enemy/BaseEnemy.h" // 적 미니맵
+#include "Enemy/BossEnemy.h"
+#include "UI/CH3DialogueWidget.h"
+	// 게임 결과
+#include "UI/CH3ResultWidget.h"
 
 //컴포넌트 및 캐릭터
 #include "Characters/Player/PlayerCharacter.h"
@@ -109,10 +114,17 @@ void UCH3MainHUDWidget::NativeTick(const FGeometry& MyGeometry, float DeltaTime)
 		// 크로스헤어 벌어짐 갱신
 	UpdateCrosshair(DeltaTime);
 	
+		// [추가] 적 미니맵 마커 갱신.
+	UpdateEnemyMarkers(DeltaTime);
+	
 
 	
 		// ---- 미니맵: 플레이어 마커 위치 갱신 ----
 	APawn* PlayerPawn = GetOwningPlayerPawn();
+	if (!PlayerPawn)
+	{
+		return;
+	}
 	if (PlayerPawn && PlayerMarker)
 	{
 		// 위치는 중앙 고정. 방향만 갱신. 마커가 바라보는 방향을 화살표로 (다른 아이콘(원형 점 등)만 쓸 거면 이 줄은 없어도 됨)
@@ -176,6 +188,11 @@ void UCH3MainHUDWidget::BindDelegates()
 	{
 		PC->OnEXPChanged.AddDynamic(this, &UCH3MainHUDWidget::HandleEXPChanged);
 		PC->OnLevelUp.AddDynamic(this, &UCH3MainHUDWidget::HandleLevelUp);
+		
+		
+		// 데미지/히트 방송 구독 — 데미지 숫자 + 히트마커 둘 다 이걸로 처리.
+		PC->OnDamageDealt.AddDynamic(this, &UCH3MainHUDWidget::HandleDamageDealt);
+
 
 		HandleEXPChanged(PC->CurrentEXP, PC->MaxEXP);
 		HandleLevelUp(PC->CurrentLevel);
@@ -205,10 +222,6 @@ void UCH3MainHUDWidget::BindDelegates()
 	// [TODO] 탄약/탄환 시스템 생기면:
 	// PC->OnAmmoChanged.AddDynamic(this, &UCH3MainHUDWidget::HandleAmmoChanged);
 	// PC->OnBulletSpeciesChanged.AddDynamic(this, &UCH3MainHUDWidget::HandleBulletSpeciesChanged);
- 
-	// [TODO] 데미지/킬 델리게이트가 GameState/GameMode에 생기면:
-	// GS->OnDamageDealt.AddDynamic(this, &UCH3MainHUDWidget::HandleDamageDealt);
-	// GS->OnEnemyKilled.AddDynamic(this, &UCH3MainHUDWidget::HandleEnemyKilled);
 }
 
 
@@ -296,13 +309,14 @@ void UCH3MainHUDWidget::RefreshQuestDetails()
 			FString::Printf(TEXT("남은 시간 %.0f초"),
 				CachedTimeRemaining)));
 	}
-	
+	/*
 	if (Quest_Mobdetails)
 	{
 		Quest_Mobdetails->SetText(FText::FromString(
 			FString::Printf(TEXT("남은 적 %d"),
 				CachedEnemiesRemaining)));
 	}
+	*/
 }
 
 
@@ -314,11 +328,30 @@ void UCH3MainHUDWidget::HandleGamePlayStateChanged(EGamePlayState NewState)
 	switch (NewState)
 	{
 	case EGamePlayState::GameClear:
-		if (Quest) Quest->SetText(FText::FromString(TEXT("클리어!")));
-		break;
 	case EGamePlayState::GameOver:
-		if (Quest) Quest->SetText(FText::FromString(TEXT("게임 오버")));
-		break;
+		{
+			const bool bIsClear = (NewState == EGamePlayState::GameClear);
+
+			if (Quest)
+			{
+				Quest->SetText(FText::FromString(bIsClear ? TEXT("클리어!") : TEXT("게임 오버")));
+			}
+
+			// [추가] 결과 화면 표시.
+			if (ResultWidgetClass)
+			{
+				if (!ResultWidget)
+				{
+					ResultWidget = CreateWidget<UCH3ResultWidget>(GetOwningPlayer(), ResultWidgetClass);
+				}
+				if (ResultWidget)
+				{
+					ResultWidget->AddToViewport(70);
+					ResultWidget->ShowResult(bIsClear);
+				}
+			}
+			break;
+		}
 	case EGamePlayState::LevelUpPause:
 		// [TODO] 레벨업 카드 UI 표시 (다음 단계)
 		break;
@@ -352,7 +385,23 @@ void UCH3MainHUDWidget::HandleWaveChanged(int32 CurrentWave, int32 TotalWaves)
 		Quest->SetText(FText::FromString(
 			FString::Printf(TEXT("Wave %d / %d 생존"), CurrentWave, TotalWaves)));
 	}
+	
+	
+	// [추가] 새 웨이브 시작 → 대사 표시. 경고 표시 가드도 초기화.
+	bWarningShownThisWave = false;
+	
+	
+	if (const FDialogueLineSet* LineSet = WaveStartDialogueLines.Find(CurrentWave))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Dialogue] 대사 세트 찾음. Lines 수=%d"), LineSet->Lines.Num());
+		ShowRandomDialogue(LineSet->Lines, true);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Dialogue] Wave %d에 해당하는 대사 세트 없음"), CurrentWave);
+	}
 }
+
 
 void UCH3MainHUDWidget::HandleEnemiesRemainingChanged(int32 Remaining)
 {
@@ -360,10 +409,21 @@ void UCH3MainHUDWidget::HandleEnemiesRemainingChanged(int32 Remaining)
 	RefreshQuestDetails();
 }
 
+
+
 void UCH3MainHUDWidget::HandleWaveTimeChanged(float TimeRemaining)
 {
 	CachedTimeRemaining = TimeRemaining;
 	RefreshQuestDetails();
+	
+	
+	// 10초 이하로 남았고, 이번 웨이브에서 아직 안 띄웠으면 한 번만 표시.
+	if (!bWarningShownThisWave && TimeRemaining <= 10.f && TimeRemaining > 0.f)
+	{
+		bWarningShownThisWave = true;
+		ShowRandomDialogue(WaveWarningLines, true);
+	}
+	
 }
 
 
@@ -457,6 +517,11 @@ void UCH3MainHUDWidget::HandleHitConfirmed(bool bIsCritical)
 		//적이 대미지 입을 시 그 자리에 숫자 스폰.
 void UCH3MainHUDWidget::HandleDamageDealt(float DamageAmount, FVector HitLocation, bool bIsCritical)
 {
+	
+	// [디버그] 확인 후 삭제.
+	UE_LOG(LogTemp, Warning, TEXT("[Damage] HandleDamageDealt 호출됨. Damage=%.1f"), DamageAmount);
+
+	
 	if (!DamageNumberWidgetClass) return;
  
 	FVector2D ScreenPos;
@@ -477,6 +542,9 @@ void UCH3MainHUDWidget::HandleDamageDealt(float DamageAmount, FVector HitLocatio
 	NewNumber->SetPositionInViewport(ScreenPos / DPIScale, false);
  
 	NewNumber->InitDamageNumber(DamageAmount, bIsCritical);
+	
+	// 같은 신호로 히트마커도 같이 표시.
+	HandleHitConfirmed(bIsCritical);
 }
 
 
@@ -577,10 +645,6 @@ void UCH3MainHUDWidget::UpdateCrosshair(float DeltaTime)
 	if (CrosshairLeft) CrosshairLeft->SetVisibility(bAiming ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
 	if (CrosshairRight) CrosshairRight->SetVisibility(bAiming ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
 
-	if (!CrosshairTop || !CrosshairBottom || !CrosshairLeft || !CrosshairRight)
-	{
-		return;
-	}
 	
 		// 크로스헤어의 작대기 4개 중 하나라도 없으면(WBP에 미배치) 전체 스킵 - null 안전장치
 	if (!CrosshairTop || !CrosshairBottom || !CrosshairLeft || !CrosshairRight)
@@ -721,22 +785,30 @@ void UCH3MainHUDWidget::UpdateBoundaryWarning(const FVector& PlayerLocation)
 	const float PlayerX = static_cast<float>(PlayerLocation.X);
 	const float PlayerY = static_cast<float>(PlayerLocation.Y);
 
-	// 네 벽까지의 거리. 안쪽이면 양수, 넘으면 음수.
-	// [변경] 기존 Max3(0.f, ...) 방식은 "얼마나 벗어났나"만 남기고 "얼마나 안쪽인가"를
-	//        전부 0으로 뭉갰음. 플레이어가 벽에 막혀 못 나가는 이상 그 값은 항상 0이라
-	//        경고 강도를 만들 수 없었다. 그래서 부호 있는 거리로 교체.
-	const float DistMinX = PlayerX - BoundaryMinX;
-	const float DistMaxX = BoundaryMaxX - PlayerX;
-	const float DistMinY = PlayerY - BoundaryMinY;
-	const float DistMaxY = BoundaryMaxY - PlayerY;
+	
+	// 중심 기준 상대 좌표.
+	const float RelX = PlayerX - BoundaryCenter.X;
+	const float RelY = PlayerY - BoundaryCenter.Y;
+	
+	
+	// 레벨 회전각만큼 반대로 회전시켜, 축 정렬된 사각형처럼 만든다.
+	const float RadAngle = FMath::DegreesToRadians(-BoundaryRotationYaw);
+	const float LocalX = RelX * FMath::Cos(RadAngle) - RelY * FMath::Sin(RadAngle);
+	const float LocalY = RelX * FMath::Sin(RadAngle) + RelY * FMath::Cos(RadAngle);
 
-	// 가장 가까운 벽까지의 거리. 이 값 하나로 강도를 정한다.
-	const float NearestDist = FMath::Min(
-		FMath::Min(DistMinX, DistMaxX),
-		FMath::Min(DistMinY, DistMaxY));
+	// 이제 LocalX/LocalY는 "회전 안 된 사각형" 기준 좌표. 보통 사각형 판정 적용.
+	const float DistToRightEdge = BoundaryHalfWidth - LocalX;
+	const float DistToLeftEdge = BoundaryHalfWidth + LocalX;
+	const float DistToTopEdge = BoundaryHalfHeight - LocalY;
+	const float DistToBottomEdge = BoundaryHalfHeight + LocalY;
+	
 
-	// 마진보다 안쪽이면 경고 없음. Collapsed로 렌더링 자체를 생략.
-	if (NearestDist >= BoundaryWarningMargin)
+	const float DistToEdge = FMath::Min(
+		FMath::Min(DistToRightEdge, DistToLeftEdge),
+		FMath::Min(DistToTopEdge, DistToBottomEdge));
+	
+	
+	if (DistToEdge >= BoundaryWarningMargin)
 	{
 		BoundaryWarningVignette->SetVisibility(ESlateVisibility::Collapsed);
 		return;
@@ -750,7 +822,7 @@ void UCH3MainHUDWidget::UpdateBoundaryWarning(const FVector& PlayerLocation)
 	const float Intensity = FMath::GetMappedRangeValueClamped(
 		FVector2D(BoundaryWarningMargin, 0.f),
 		FVector2D(0.f, 1.f),
-		NearestDist);
+		DistToEdge);
 
 	BoundaryWarningVignette->SetColorAndOpacity(
 		FLinearColor(0.f, 0.f, 0.f, Intensity * BoundaryWarningMaxAlpha));
@@ -831,3 +903,195 @@ void UCH3MainHUDWidget::ToggleUpgradeInventory()
 	}
 }
 
+
+
+
+void UCH3MainHUDWidget::UpdateEnemyMarkers(float DeltaTime)
+{
+	if (!EnemyMarkerWidgetClass || !MinimapMarkerCanvas)
+	{
+		return;
+	}
+
+	EnemyScanElapsed += DeltaTime;
+	if (EnemyScanElapsed < EnemyScanInterval)
+	{
+		// 1) for 문 시작 전에 플레이어 폰을 먼저 가져오고 유효성 검사!
+		APawn* PlayerPawn = GetOwningPlayerPawn();
+		if (!PlayerPawn) 
+		{
+			return; // 플레이어가 없으면 미니맵 마커 위치 계산을 즉시 중지 (크래시 완벽 방지)
+		}
+		// 캔버스의 실제 크기를 런타임에 읽는다.
+		// MinimapImagePixelSize(고정값)와 실제 캔버스 크기가 다르면 마커가 미니맵 밖으로 나가기 때문.
+		const FVector2D CanvasSize = MinimapMarkerCanvas->GetCachedGeometry().GetLocalSize();
+		if (CanvasSize.X <= 0.f || CanvasSize.Y <= 0.f)
+		{
+			return;	// 아직 레이아웃이 계산 안 된 첫 프레임 등
+		}
+
+		const float MinimapRadius = FMath::Min(CanvasSize.X, CanvasSize.Y) * 0.5f;
+
+		for (const TPair<ABaseEnemy*, UCH3MinimapMarkerWidget*>& Pair : EnemyMarkers)
+		{
+			if (IsValid(Pair.Key) && Pair.Value)
+			{
+				/* 클로드가 작성했던 삼각함수 부분.
+				 * 아래에 공용 함수를 추가해서 정리.
+				// 플레이어 기준 상대 위치를 미니맵 픽셀 단위로 환산.
+				// 중심(0,0) 기준 오프셋으로 바로 계산 — 별도 원점 보정이 필요 없음.
+				const FVector Rel = Pair.Key->GetActorLocation() - PlayerPawn->GetActorLocation();
+
+				// 레벨 자체가 회전되어 있어(BoundaryRotationYaw), 미니맵 좌표도 그만큼 반대로 회전시켜야
+				// 실제 화면에서 보이는 방향과 미니맵 방향이 일치함.
+				const float RadAngle = FMath::DegreesToRadians(-BoundaryRotationYaw);
+				const float RotatedX = Rel.X * FMath::Cos(RadAngle) - Rel.Y * FMath::Sin(RadAngle);
+				const float RotatedY = Rel.X * FMath::Sin(RadAngle) + Rel.Y * FMath::Cos(RadAngle);
+
+				// [정상적으로 시야와 일치하는 수정 코드]
+				FVector2D Offset(
+					(RotatedY / MinimapWorldSize.Y) * CanvasSize.X,   // 월드 Y(오른쪽) -> UI X(오른쪽)
+					(-RotatedX / MinimapWorldSize.X) * CanvasSize.Y); // 월드 X(앞쪽)   -> UI -Y(위쪽)
+
+				// 원형 미니맵이므로 반경으로 제한. 멀리 있는 적은 테두리에 붙어 방향만 표시됨.
+				if (Offset.Size() > MinimapRadius)
+				{
+					Offset = Offset.GetSafeNormal() * MinimapRadius;
+				}
+
+				if (UCanvasPanelSlot* PanelSlot = Cast<UCanvasPanelSlot>(Pair.Value->Slot))
+				{
+					PanelSlot->SetPosition(Offset);
+				}
+				*/
+				
+					//하단의 공용 함수를 이용하는 부분.
+				FVector2D Offset = ConvertWorldToMinimapOffset(Pair.Key->GetActorLocation(), CanvasSize);
+
+				// 원형 미니맵 밖으로 나가는 마커는 테두리에 걸치도록 제한
+				if (Offset.Size() > MinimapRadius)
+				{
+					Offset = Offset.GetSafeNormal() * MinimapRadius;
+				}
+
+				// 위젯 위치 적용
+				if (UCanvasPanelSlot* PanelSlot = Cast<UCanvasPanelSlot>(Pair.Value->Slot))
+				{
+					PanelSlot->SetPosition(Offset);
+				}
+			}
+		}
+		return;
+	}
+	EnemyScanElapsed = 0.f;
+
+		// 1) 현재 살아있는 적 전부 찾기.
+	TArray<AActor*> FoundEnemies;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ABaseEnemy::StaticClass(), FoundEnemies);
+
+	TSet<ABaseEnemy*> AliveEnemies;
+	for (AActor* Actor : FoundEnemies)
+	{
+		if (ABaseEnemy* Enemy = Cast<ABaseEnemy>(Actor))
+		{
+			AliveEnemies.Add(Enemy);
+
+				// 마커가 없는 새 적이면 생성.
+			if (!EnemyMarkers.Contains(Enemy))
+			{
+				UCH3MinimapMarkerWidget* NewMarker = CreateWidget<UCH3MinimapMarkerWidget>(this, EnemyMarkerWidgetClass);
+				if (NewMarker)
+				{
+					MinimapMarkerCanvas->AddChildToCanvas(NewMarker);
+
+					if (UCanvasPanelSlot* PanelSlot = Cast<UCanvasPanelSlot>(NewMarker->Slot))
+					{
+							// 플레이어 마커와 동일한 기준점(중앙)으로 맞춤. 없으면 좌표 원점이 달라 위치가 어긋남.
+						PanelSlot->SetAnchors(FAnchors(0.5f, 0.5f));
+						PanelSlot->SetAlignment(FVector2D(0.5f, 0.5f));
+						PanelSlot->SetSize(FVector2D(16.f, 16.f));
+					}
+
+						// 보스면 색과 크기를 다르게.
+					if (Cast<ABossEnemy>(Enemy))
+					{
+						NewMarker->SetMarkerColor(BossMarkerColor);
+						if (UCanvasPanelSlot* PanelSlot = Cast<UCanvasPanelSlot>(NewMarker->Slot))
+						{
+							PanelSlot->SetSize(FVector2D(28.f, 28.f));
+						}
+					}
+					else
+					{
+						NewMarker->SetMarkerColor(NormalEnemyMarkerColor);
+					}
+
+					EnemyMarkers.Add(Enemy, NewMarker);
+				}
+			}
+		}
+	}
+
+		// 2) 죽거나 사라진 적의 마커는 제거.
+	for (auto It = EnemyMarkers.CreateIterator(); It; ++It)
+	{
+		if (!IsValid(It->Key) || !AliveEnemies.Contains(It->Key))
+		{
+			if (It->Value)
+			{
+				It->Value->RemoveFromParent();
+			}
+			It.RemoveCurrent();
+		}
+	}
+}
+
+
+// .h 또는 .cpp 내부에 공통 좌표 변환 함수 신설
+// [새로 작성] 공통 좌표 변환 함수 구현부
+FVector2D UCH3MainHUDWidget::ConvertWorldToMinimapOffset(const FVector& WorldLocation, const FVector2D& TargetCanvasSize)
+{
+	APawn* PlayerPawn = GetOwningPlayerPawn();
+	if (!PlayerPawn) return FVector2D::ZeroVector;
+
+	const FVector Rel = WorldLocation - PlayerPawn->GetActorLocation();
+
+	// 1) 레벨 회전각을 반영하는 삼각함수 계산 로직
+	const float RadAngle = FMath::DegreesToRadians(-BoundaryRotationYaw);
+	const float RotatedX = Rel.X * FMath::Cos(RadAngle) - Rel.Y * FMath::Sin(RadAngle);
+	const float RotatedY = Rel.X * FMath::Sin(RadAngle) + Rel.Y * FMath::Cos(RadAngle);
+
+	// 2) 3D 월드 -> 2D UI 변환 (축 매핑 및 Y축 부호 반전 완벽 적용!)
+	return FVector2D(
+		(RotatedY / MinimapWorldSize.Y) * TargetCanvasSize.X,   // 월드 Y -> UI X (좌우)
+		(-RotatedX / MinimapWorldSize.X) * TargetCanvasSize.Y   // 월드 X -> UI -Y (상하 반전)
+	);
+}
+
+
+void UCH3MainHUDWidget::ShowRandomDialogue(const TArray<FText>& Candidates, bool bUseNPCIcon)
+{
+	
+	UE_LOG(LogTemp, Warning, TEXT("[Dialogue] ShowRandomDialogue 호출됨. 후보 수=%d, ClassSet=%s"),
+		Candidates.Num(), DialogueWidgetClass ? TEXT("있음") : TEXT("없음"));
+	
+	if (Candidates.Num() == 0 || !DialogueWidgetClass)
+	{
+		return;
+	}
+
+	if (!DialogueWidget)
+	{
+		DialogueWidget = CreateWidget<UCH3DialogueWidget>(this, DialogueWidgetClass);
+		if (DialogueWidget)
+		{
+			DialogueWidget->AddToViewport(50);
+		}
+	}
+
+	if (DialogueWidget)
+	{
+		const int32 Index = FMath::RandRange(0, Candidates.Num() - 1);
+		DialogueWidget->ShowDialogue(Candidates[Index], bUseNPCIcon);
+	}
+}

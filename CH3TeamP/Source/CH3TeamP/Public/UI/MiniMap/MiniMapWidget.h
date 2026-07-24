@@ -36,9 +36,16 @@ public:
 		// 마커 회전(도 단위). 플레이어가 바라보는 방향을 화살표로 표현할 때 사용.
 		// MainHUD의 NativeTick에서 이미 호출 중이던 함수 — 선언/구현이 없어서 컴파일 에러였음
 	void SetMarkerAngle(float AngleDegrees);
+	
+		// 이 마커가 어떤 몬스터/액터의 것인지 지정
+	void SetTargetActor(AActor* InTarget) { TargetActor = InTarget; }
+	AActor* GetTargetActor() const { return TargetActor.Get(); }
 
 protected:
-	// Marker 사용
+		// Marker 사용
 	UPROPERTY(meta = (BindWidget))
 	UImage* MarkerIcon;
+	
+	// 마커가 추적 중인 대상 (약포인터로 안전 관리)
+	TWeakObjectPtr<AActor> TargetActor;
 };

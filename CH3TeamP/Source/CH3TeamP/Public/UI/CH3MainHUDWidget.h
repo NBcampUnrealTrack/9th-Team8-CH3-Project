@@ -22,10 +22,27 @@ class UCH3MinimapMarkerWidget;
 class UCH3DamageNumberWidget;
 class UCH3KillFeedEntryWidget;
 class ACH3MinimapCaptureActor;
+class ABaseEnemy;	//적 몬스터 위치 확인용
 	// 이후 필요한 클래스들 여기에 추가.
 
 	//포인터로만 들고 있기에, 전방 선언.
 class APlayerCharacter;
+
+	// 게임 결과 위젯.
+class UCH3ResultWidget;
+
+	// 대사용
+class UCH3DialogueWidget;
+
+// 한 웨이브에서 쓸 대사 후보 목록. 여러 개면 랜덤, 하나면 고정 대사.
+USTRUCT(BlueprintType)
+struct FDialogueLineSet
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere)
+	TArray<FText> Lines;
+};
 
 
 UCLASS()
@@ -56,6 +73,9 @@ public:
 		// 웨이브 남은 시간 (0.1초마다 갱신)
 	UFUNCTION() void HandleWaveTimeChanged(float TimeRemaining);
 	
+		// 대화창.
+	void ShowRandomDialogue(const TArray<FText>& Candidates, bool bUseNPCIcon);
+	
 	
 	
 		// 저체력 붉은 오버레이. WBP의 LowHealthVignette와 이름으로 연결.
@@ -82,24 +102,32 @@ public:
 	UPROPERTY(meta = (BindWidgetOptional))
 	class UImage* BoundaryWarningVignette;
 
-		// 안전 구역 사각형. 팀원이 배치한 차단 액터 위치 기준으로 측정한 값.
+		// 안전 구역 사각형. 팀원이 배치한 차단 액터 위치 기준으로 측정한 값. <- 취소. 레벨이 기울어짐.
 		// (실제 벽 위치와 어긋나면 여기 숫자만 조정하면 됨 — 코드 구조는 안 바뀜)
+		// 안전 구역 원형 경계. 레벨이 회전되어 있어 사각형보다 원형이 적합. 은 무슨, 그냥 사각형 하고 각도 조절하기.
 	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary")
-	float BoundaryMinX = -3000.0f;
+	FVector2D BoundaryCenter = FVector2D(89.58f, -155.22f);
+
+	// 레벨 바닥 액터의 Yaw 회전값 그대로.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary")
+	float BoundaryRotationYaw = 30.0f;
+	
+	// 회전 안 된 상태 기준 가로/세로 절반 길이.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary")
+	float BoundaryHalfWidth = 6000.f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary")
-	float BoundaryMaxX = 5600.0f;
+	float BoundaryHalfHeight = 6000.f;
 
-	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary")
-	float BoundaryMinY = -5000.0f;
-
-	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary")
-	float BoundaryMaxY = 4000.0f;
-
-	// 이 거리(cm)만큼 안쪽부터 경고가 서서히 시작됨. 벽에 닿기 전에 미리 알리기 위함.
 	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary")
 	float BoundaryWarningMargin = 500.f;
 	
+	// 벽에 붙었을 때의 최대 어둡기. 1.0(완전 검정)이면 앞이 안 보여서
+	// 벽에 막힌 채 돌아갈 방향을 못 찾게 됨. 상한을 둬서 시야를 남긴다.
+	// 이 거리(cm)만큼 안쪽부터 경고가 서서히 시작됨. 벽에 닿기 전에 미리 알리기 위함.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float BoundaryWarningMaxAlpha = 0.8f;
+
 	
 	
 	
@@ -207,10 +235,7 @@ public:
 	
 	
 	
-		// 벽에 붙었을 때의 최대 어둡기. 1.0(완전 검정)이면 앞이 안 보여서
-		// 벽에 막힌 채 돌아갈 방향을 못 찾게 됨. 상한을 둬서 시야를 남긴다.
-	UPROPERTY(EditDefaultsOnly, Category = "CH3|Boundary", meta = (ClampMin = "0.0", ClampMax = "1.0"))
-	float BoundaryWarningMaxAlpha = 0.7f;
+		
 	
 	
 private:
@@ -282,6 +307,26 @@ protected:
  
 	UPROPERTY()
 	UCH3MinimapMarkerWidget* PlayerMarker;
+	
+		// 적 미니맵 마커. 살아있는 적 하나당 위젯 하나씩 매칭.
+	UPROPERTY()
+	TMap<ABaseEnemy*, UCH3MinimapMarkerWidget*> EnemyMarkers;
+
+		// 적 마커로 쓸 위젯 클래스. 플레이어 마커와 별도로 지정 가능(다른 색 등).
+	UPROPERTY(EditAnywhere, Category = "Minimap")
+	TSubclassOf<UCH3MinimapMarkerWidget> EnemyMarkerWidgetClass;
+
+	// [추가] 일반 적과 보스의 마커 색 구분.
+	UPROPERTY(EditAnywhere, Category = "Minimap")
+	FLinearColor NormalEnemyMarkerColor = FLinearColor::Red;
+
+	UPROPERTY(EditAnywhere, Category = "Minimap")
+	FLinearColor BossMarkerColor = FLinearColor(1.f, 0.5f, 0.f);   // 주황 계열, 눈에 확 띄게
+	
+	
+		// 매 프레임 전체 탐색은 낭비라 이 주기(초)마다만 몬스터 목록을 다시 훑는다.
+	UPROPERTY(EditAnywhere, Category = "Minimap")
+	float EnemyScanInterval = 0.5f;
  
 	FVector2D WorldToMinimapPosition(const FVector& WorldLocation);
 	
@@ -314,8 +359,11 @@ private:
 	float CachedTimeRemaining = 0.f;
 	int32 CachedEnemiesRemaining = 0;
 	
-	
-	
+		// 적 마커
+	float EnemyScanElapsed = 0.f;
+
+	// 살아있는 적 목록을 다시 훑어 마커를 생성/제거하고 위치를 갱신.
+	void UpdateEnemyMarkers(float DeltaTime);
 	
 	// 전투 피드백 위젯 부분.
 public:
@@ -351,7 +399,8 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Feedback")
 	FLinearColor HitMarkerCriticalColor = FLinearColor::Red;
 
-	
+	// 월드 좌표를 미니맵 캔버스 오프셋 좌표로 변환하는 공통 함수
+	FVector2D ConvertWorldToMinimapOffset(const FVector& WorldLocation, const FVector2D& TargetCanvasSize);
 	
 private:
 	
@@ -417,6 +466,8 @@ public:
 	//   (FOnUpgradeConfirmed 선언: CH3TeamProjectGameMode.h)
 	UFUNCTION()
 	void HandleUpgradeAcquired(EUpgradeType ChosenUpgrade, AController* ForPlayer);
+	
+	
 
 protected:
 	// 획득한 강화 종류별 개수. 카드 확정마다 +1.
@@ -431,9 +482,45 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	UCH3UpgradeListWidget* UpgradeListWidget;
 	
+	
+	// 게임 클리어/오버 결과 화면. WBP에서 클래스 지정.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Result")
+	TSubclassOf<class UCH3ResultWidget> ResultWidgetClass;
+
+	// 화면에 붙일 결과 위젯 인스턴스.
+	UPROPERTY()
+	class UCH3ResultWidget* ResultWidget;
+	
 		// 토글용.
 public:
 	void ToggleUpgradeInventory();
+	
+	// 대사용
+protected:
+	// NPC 대사창. 하나만 만들어 재사용.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Dialogue")
+	TSubclassOf<UCH3DialogueWidget> DialogueWidgetClass;
+
+	UPROPERTY()
+	UCH3DialogueWidget* DialogueWidget;
+
+	// 웨이브 번호 → 그 웨이브 전용 대사 세트.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Dialogue")
+	TMap<int32, FDialogueLineSet> WaveStartDialogueLines;
+
+	// 보스 웨이브 전용 대사(웨이브 번호 무관).
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Dialogue")
+	TArray<FText> BossWarningLines;
+
+	// 10초 남았을 때 쓸 공용 경고 대사.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Dialogue")
+	TArray<FText> WaveWarningLines;
+
+	// 10초 경고가 이번 웨이브에서 이미 떴는지. 매 프레임 조건을 만족해도 한 번만 뜨게 하는 가드.
+	bool bWarningShownThisWave = false;
+	
+	
+	
 	
 	/* -------------캐릭터 연결 없이 테스트할 시
 private:

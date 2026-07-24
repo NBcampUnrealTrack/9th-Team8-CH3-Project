@@ -5,6 +5,8 @@
 #include "CH3MainMenuWidget.generated.h"
 
 class UButton;
+class UCH3OpeningWidget;
+
 
 UCLASS()
 class CH3TEAMP_API UCH3MainMenuWidget : public UUserWidget
@@ -32,6 +34,10 @@ protected:
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> Btn_Quit;
+	
+		// 오프닝 영상 재생용.
+	UPROPERTY(EditAnywhere, Category = "MainMenu")
+	TSubclassOf<UCH3OpeningWidget> OpeningWidgetClass;
 
 		// 버튼 콜백.
 		// OnClicked는 동적 델리게이트기 때문에 UFUNCTION()이 반드시 필요.
