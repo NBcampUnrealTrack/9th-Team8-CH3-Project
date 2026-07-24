@@ -34,35 +34,7 @@ void AEnemyAIController::OnPossess(APawn* InPawn)
     // 새로운 적에 빙의했으므로 이동·공격 시간을 초기화
     LastMoveRequestTime = -1000.0f;
     LastAttackTime = -1000.0f;
-
-    if (GEngine)
-    {
-        if (ControlledEnemy)
-        {
-            GEngine->AddOnScreenDebugMessage(
-                -1,
-                5.0f,
-                FColor::Green,
-                TEXT("OnPossess: ControlledEnemy OK")
-            );
-        }
-        else
-        {
-            const FString PawnClassName = InPawn
-                ? InPawn->GetClass()->GetName()
-                : TEXT("NULL");
-
-            GEngine->AddOnScreenDebugMessage(
-                -1,
-                5.0f,
-                FColor::Red,
-                FString::Printf(
-                    TEXT("OnPossess: Pawn is not BaseEnemy: %s"),
-                    *PawnClassName
-                )
-            );
-        }
-    }
+    
 }
 
 
@@ -78,17 +50,7 @@ void AEnemyAIController::Tick(float DeltaTime)
     if (!ControlledPawn)
     {
         ControlledEnemy = nullptr;
-
-        if (GEngine)
-        {
-            GEngine->AddOnScreenDebugMessage(
-                1001,
-                0.1f,
-                FColor::Red,
-                TEXT("GetPawn NULL")
-            );
-        }
-
+        
         StopMovement();
         return;
     }
@@ -104,19 +66,6 @@ void AEnemyAIController::Tick(float DeltaTime)
 
     if (!ControlledEnemy)
     {
-        if (GEngine)
-        {
-            GEngine->AddOnScreenDebugMessage(
-                1002,
-                0.1f,
-                FColor::Orange,
-                FString::Printf(
-                    TEXT("Pawn is not BaseEnemy: %s"),
-                    *ControlledPawn->GetClass()->GetName()
-                )
-            );
-        }
-
         StopMovement();
         return;
     }
@@ -133,16 +82,6 @@ void AEnemyAIController::Tick(float DeltaTime)
             if (ControlledEnemy->GetEnemyState() != EEnemyState::Idle)
             {
                 ControlledEnemy->SetEnemyState(EEnemyState::Idle);
-            }
-
-            if (GEngine)
-            {
-                GEngine->AddOnScreenDebugMessage(
-                    1003,
-                    0.1f,
-                    FColor::Yellow,
-                    TEXT("TargetPlayer NULL")
-                );
             }
 
             StopMovement();
@@ -163,23 +102,7 @@ void AEnemyAIController::Tick(float DeltaTime)
 
     const float EnemyAttackCooldown =
         ControlledEnemy->GetAttackCooldown();
-
-    /*
-     * 현재 거리와 공격 범위를 화면에 표시
-     */
-    if (GEngine)
-    {
-        GEngine->AddOnScreenDebugMessage(
-            2000,
-            0.1f,
-            FColor::Cyan,
-            FString::Printf(
-                TEXT("Distance: %.0f | AttackRange: %.0f"),
-                DistanceToPlayer,
-                EnemyAttackRange
-            )
-        );
-    }
+    
 
     /*
      * 5. 공격 범위 밖이라면 플레이어 추적
@@ -245,16 +168,7 @@ void AEnemyAIController::Tick(float DeltaTime)
                 MoveResultColor = FColor::Red;
                 break;
             }
-
-            if (GEngine)
-            {
-                GEngine->AddOnScreenDebugMessage(
-                    2001,
-                    0.5f,
-                    MoveResultColor,
-                    MoveResultText
-                );
-            }
+            
         }
     }
     /*

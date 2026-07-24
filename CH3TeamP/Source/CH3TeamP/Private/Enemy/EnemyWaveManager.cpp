@@ -145,7 +145,6 @@ void AEnemyWaveManager::SpawnNextWave()
 			*SpawnLocation.ToString()
 		);
 
-		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Cyan, DebugText);
 	}
 }
 
