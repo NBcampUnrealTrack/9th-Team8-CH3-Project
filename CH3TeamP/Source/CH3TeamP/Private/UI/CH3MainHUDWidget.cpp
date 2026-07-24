@@ -24,6 +24,7 @@
 #include "UI/Upgrade/CH3UpgradeListWidget.h"
 #include "Enemy/BaseEnemy.h" // 적 미니맵
 #include "Enemy/BossEnemy.h"
+#include "UI/CH3DialogueWidget.h"
 	// 게임 결과
 #include "UI/CH3ResultWidget.h"
 
@@ -384,6 +385,21 @@ void UCH3MainHUDWidget::HandleWaveChanged(int32 CurrentWave, int32 TotalWaves)
 		Quest->SetText(FText::FromString(
 			FString::Printf(TEXT("Wave %d / %d 생존"), CurrentWave, TotalWaves)));
 	}
+	
+	
+	// [추가] 새 웨이브 시작 → 대사 표시. 경고 표시 가드도 초기화.
+	bWarningShownThisWave = false;
+	
+	
+	if (const FDialogueLineSet* LineSet = WaveStartDialogueLines.Find(CurrentWave))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Dialogue] 대사 세트 찾음. Lines 수=%d"), LineSet->Lines.Num());
+		ShowRandomDialogue(LineSet->Lines, true);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Dialogue] Wave %d에 해당하는 대사 세트 없음"), CurrentWave);
+	}
 }
 
 
@@ -399,6 +415,15 @@ void UCH3MainHUDWidget::HandleWaveTimeChanged(float TimeRemaining)
 {
 	CachedTimeRemaining = TimeRemaining;
 	RefreshQuestDetails();
+	
+	
+	// 10초 이하로 남았고, 이번 웨이브에서 아직 안 띄웠으면 한 번만 표시.
+	if (!bWarningShownThisWave && TimeRemaining <= 10.f && TimeRemaining > 0.f)
+	{
+		bWarningShownThisWave = true;
+		ShowRandomDialogue(WaveWarningLines, true);
+	}
+	
 }
 
 
@@ -1041,4 +1066,32 @@ FVector2D UCH3MainHUDWidget::ConvertWorldToMinimapOffset(const FVector& WorldLoc
 		(RotatedY / MinimapWorldSize.Y) * TargetCanvasSize.X,   // 월드 Y -> UI X (좌우)
 		(-RotatedX / MinimapWorldSize.X) * TargetCanvasSize.Y   // 월드 X -> UI -Y (상하 반전)
 	);
+}
+
+
+void UCH3MainHUDWidget::ShowRandomDialogue(const TArray<FText>& Candidates, bool bUseNPCIcon)
+{
+	
+	UE_LOG(LogTemp, Warning, TEXT("[Dialogue] ShowRandomDialogue 호출됨. 후보 수=%d, ClassSet=%s"),
+		Candidates.Num(), DialogueWidgetClass ? TEXT("있음") : TEXT("없음"));
+	
+	if (Candidates.Num() == 0 || !DialogueWidgetClass)
+	{
+		return;
+	}
+
+	if (!DialogueWidget)
+	{
+		DialogueWidget = CreateWidget<UCH3DialogueWidget>(this, DialogueWidgetClass);
+		if (DialogueWidget)
+		{
+			DialogueWidget->AddToViewport(50);
+		}
+	}
+
+	if (DialogueWidget)
+	{
+		const int32 Index = FMath::RandRange(0, Candidates.Num() - 1);
+		DialogueWidget->ShowDialogue(Candidates[Index], bUseNPCIcon);
+	}
 }

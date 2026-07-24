@@ -31,6 +31,19 @@ class APlayerCharacter;
 	// 게임 결과 위젯.
 class UCH3ResultWidget;
 
+	// 대사용
+class UCH3DialogueWidget;
+
+// 한 웨이브에서 쓸 대사 후보 목록. 여러 개면 랜덤, 하나면 고정 대사.
+USTRUCT(BlueprintType)
+struct FDialogueLineSet
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere)
+	TArray<FText> Lines;
+};
+
 
 UCLASS()
 class CH3TEAMP_API UCH3MainHUDWidget : public UUserWidget
@@ -59,6 +72,9 @@ public:
 
 		// 웨이브 남은 시간 (0.1초마다 갱신)
 	UFUNCTION() void HandleWaveTimeChanged(float TimeRemaining);
+	
+		// 대화창.
+	void ShowRandomDialogue(const TArray<FText>& Candidates, bool bUseNPCIcon);
 	
 	
 	
@@ -478,6 +494,33 @@ protected:
 		// 토글용.
 public:
 	void ToggleUpgradeInventory();
+	
+	// 대사용
+protected:
+	// NPC 대사창. 하나만 만들어 재사용.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Dialogue")
+	TSubclassOf<UCH3DialogueWidget> DialogueWidgetClass;
+
+	UPROPERTY()
+	UCH3DialogueWidget* DialogueWidget;
+
+	// 웨이브 번호 → 그 웨이브 전용 대사 세트.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Dialogue")
+	TMap<int32, FDialogueLineSet> WaveStartDialogueLines;
+
+	// 보스 웨이브 전용 대사(웨이브 번호 무관).
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Dialogue")
+	TArray<FText> BossWarningLines;
+
+	// 10초 남았을 때 쓸 공용 경고 대사.
+	UPROPERTY(EditDefaultsOnly, Category = "CH3|Dialogue")
+	TArray<FText> WaveWarningLines;
+
+	// 10초 경고가 이번 웨이브에서 이미 떴는지. 매 프레임 조건을 만족해도 한 번만 뜨게 하는 가드.
+	bool bWarningShownThisWave = false;
+	
+	
+	
 	
 	/* -------------캐릭터 연결 없이 테스트할 시
 private:
