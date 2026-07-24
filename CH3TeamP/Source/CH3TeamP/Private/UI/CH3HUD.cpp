@@ -81,22 +81,10 @@ void ACH3HUD::BeginPlay()
 			// [가 LeftBracket이었구나.
 			// 여기는 일부러 bExecuteWhenPaused를 안 킴.
 			// 카드가 이미 떠서 일시정지된 동안 [을 또 눌러 중복 요청되는 걸 입력 단계에서부터 차단. (게임모드에도 자체 가드가 있어서 이중 안전)
-		InputComponent->BindKey(
-			EKeys::LeftBracket, IE_Pressed, this, &ACH3HUD::DebugTriggerLevelUp);
+	//	InputComponent->BindKey(EKeys::LeftBracket, IE_Pressed, this, &ACH3HUD::DebugTriggerLevelUp);
 		
 		
-			// 히트마커랑 데미지 숫자 테스트용.
-			// H키를 누르면 발동.
-			// 나중에 전투 파트 델리게이트 연결하면 지워도 됨.
-			// *****PIE 테스트용 — 배포 전 삭제할 것.*****
-		InputComponent->BindKey(EKeys::H, IE_Pressed, this, &ACH3HUD::DebugTriggerHit);
-		
-		
-		
-		
-			// [추가] PIE 체력감소 테스트용 — 배포 전 삭제할 것.
-			// J키 = 플레이어 체력 10 감소. 저체력 연출(20%/10%) 확인용.
-		InputComponent->BindKey(EKeys::J, IE_Pressed, this, &ACH3HUD::DebugDamagePlayer);
+
 	}
 
 		// -------강화 카드 부분.		// [추가 7/19] 여기부터 새 블록.
@@ -294,7 +282,7 @@ void ACH3HUD::ToggleUpgradeInventory()
 	}
 }
 
-
+/*
 	//------------이 아래는 디버그용.-------------------------
 void ACH3HUD::DebugTriggerLevelUp()
 {
@@ -311,44 +299,4 @@ void ACH3HUD::DebugTriggerLevelUp()
 	}
 }
 
-
-	//히트마커랑 대미지 디버그용.
-void ACH3HUD::DebugTriggerHit()
-{
-	if (!MainHUD)
-	{
-		return;
-	}
-
-		// 20% 확률로 치명타 — 일반/치명타 색상 분기를 둘 다 확인하려고 랜덤으로 섞음.
-	const bool bCritical = FMath::FRand() < 0.2f;
-
-		// 데미지 값도 매번 다르게. 자릿수가 바뀔 때 레이아웃이 깨지는지 보려면 폭이 넓어야 함
-	const float TestDamage = FMath::FRandRange(5.f, 250.f);
-
-		// 플레이어 앞쪽 임의 위치를 피격 지점으로 삼음
-		// 간단히 말해서, 몹 안 맞아도 피격 숫자 뜨게.(숫자가 뜰 월드 좌표)
-	FVector HitLocation = FVector::ZeroVector;
-	if (APawn* Pawn = GetOwningPlayerController() ? GetOwningPlayerController()->GetPawn() : nullptr)
-	{
-		HitLocation = Pawn->GetActorLocation()
-			+ Pawn->GetActorForwardVector() * 400.f
-			+ FVector(FMath::FRandRange(-150.f, 150.f), FMath::FRandRange(-150.f, 150.f), FMath::FRandRange(0.f, 150.f));
-	}
-
-	MainHUD->HandleHitConfirmed(bCritical);
-	MainHUD->HandleDamageDealt(TestDamage, HitLocation, bCritical);
-}
-
-
-void ACH3HUD::DebugDamagePlayer()
-{
-	// *****PIE 테스트용 — 배포 전 삭제할 것.*****
-	APawn* Pawn = GetOwningPlayerController() ? GetOwningPlayerController()->GetPawn() : nullptr;
-	APlayerCharacter* PC = Cast<APlayerCharacter>(Pawn);
-	if (PC && PC->HealthComp)
-	{
-		// 10씩 깎음. 여러 번 눌러 20%, 10% 구간을 확인.
-		PC->HealthComp->ApplyDamage(10);
-	}
-}
+*/
