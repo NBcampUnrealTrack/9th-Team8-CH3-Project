@@ -691,7 +691,7 @@ void APlayerCharacter::FirePiercing()
 		Hits,
 		Start,
 		End,
-		ECC_Visibility,
+		ECC_GameTraceChannel1,
 		Params);
 
 	if (!bHit)
