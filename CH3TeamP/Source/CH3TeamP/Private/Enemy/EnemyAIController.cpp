@@ -3,290 +3,177 @@
 
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Pawn.h"
-#include "Engine/Engine.h"
 #include "Navigation/PathFollowingComponent.h"
 
 
 AEnemyAIController::AEnemyAIController()
 {
-    // 추적 및 공격 범위 확인을 위해 Tick 활성화
-    PrimaryActorTick.bCanEverTick = true;
+	// 플레이어 추적과 공격 거리 확인을 위해 Tick 활성화
+	PrimaryActorTick.bCanEverTick = true;
 }
 
 
 void AEnemyAIController::BeginPlay()
 {
-    Super::BeginPlay();
+	Super::BeginPlay();
 
-    // 싱글 플레이 기준 0번 플레이어를 추적 대상으로 저장
-    TargetPlayer = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-
-    if (GEngine)
-    {
-        GEngine->AddOnScreenDebugMessage(
-            -1,
-            3.0f,
-            TargetPlayer ? FColor::Green : FColor::Red,
-            TargetPlayer
-                ? TEXT("TargetPlayer OK")
-                : TEXT("TargetPlayer NULL")
-        );
-    }
+	// 싱글 플레이 기준 0번 플레이어를 추적 대상으로 저장
+	TargetPlayer = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 }
 
 
 void AEnemyAIController::OnPossess(APawn* InPawn)
 {
-    Super::OnPossess(InPawn);
+	Super::OnPossess(InPawn);
 
-    // 실제 빙의된 Pawn을 ABaseEnemy로 변환
-    ControlledEnemy = Cast<ABaseEnemy>(InPawn);
+	// 실제로 빙의한 Pawn을 ABaseEnemy로 변환
+	ControlledEnemy = Cast<ABaseEnemy>(InPawn);
 
-    // 새로운 적에 빙의했으므로 이동·공격 시간을 초기화
-    LastMoveRequestTime = -1000.0f;
-    LastAttackTime = -1000.0f;
-
-    if (GEngine)
-    {
-        if (ControlledEnemy)
-        {
-            GEngine->AddOnScreenDebugMessage(
-                -1,
-                5.0f,
-                FColor::Green,
-                TEXT("OnPossess: ControlledEnemy OK")
-            );
-        }
-        else
-        {
-            const FString PawnClassName = InPawn
-                ? InPawn->GetClass()->GetName()
-                : TEXT("NULL");
-
-            GEngine->AddOnScreenDebugMessage(
-                -1,
-                5.0f,
-                FColor::Red,
-                FString::Printf(
-                    TEXT("OnPossess: Pawn is not BaseEnemy: %s"),
-                    *PawnClassName
-                )
-            );
-        }
-    }
+	// 새로운 적에 빙의했으므로 이동 및 공격 시간을 초기화
+	LastMoveRequestTime = -1000.0f;
+	LastAttackTime = -1000.0f;
 }
 
 
 void AEnemyAIController::Tick(float DeltaTime)
 {
-    Super::Tick(DeltaTime);
+	Super::Tick(DeltaTime);
 
-    /*
-     * 1. 현재 AIController가 조종 중인 Pawn 확인
-     */
-    APawn* ControlledPawn = GetPawn();
+	/*
+	 * 1. 현재 조종 중인 Pawn 확인
+	 */
+	APawn* ControlledPawn = GetPawn();
 
-    if (!ControlledPawn)
-    {
-        ControlledEnemy = nullptr;
+	if (!IsValid(ControlledPawn))
+	{
+		ControlledEnemy = nullptr;
+		StopMovement();
+		return;
+	}
 
-        if (GEngine)
-        {
-            GEngine->AddOnScreenDebugMessage(
-                1001,
-                0.1f,
-                FColor::Red,
-                TEXT("GetPawn NULL")
-            );
-        }
+	/*
+	 * 2. 조종 중인 Pawn이 변경됐거나
+	 * ControlledEnemy가 유효하지 않다면 다시 변환
+	 */
+	if (!IsValid(ControlledEnemy) ||
+		ControlledEnemy != ControlledPawn)
+	{
+		ControlledEnemy = Cast<ABaseEnemy>(ControlledPawn);
+	}
 
-        StopMovement();
-        return;
-    }
+	if (!IsValid(ControlledEnemy))
+	{
+		StopMovement();
+		return;
+	}
 
-    /*
-     * 2. 조종 중인 Pawn이 바뀌었거나
-     * ControlledEnemy가 설정되지 않았다면 다시 확인
-     */
-    if (!ControlledEnemy || ControlledEnemy != ControlledPawn)
-    {
-        ControlledEnemy = Cast<ABaseEnemy>(ControlledPawn);
-    }
+	/*
+	 * 3. 플레이어 확인
+	 *
+	 * BeginPlay 시점에 플레이어를 찾지 못했거나
+	 * 기존 플레이어 Pawn이 제거됐다면 다시 찾습니다.
+	 */
+	if (!IsValid(TargetPlayer))
+	{
+		TargetPlayer =
+			UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 
-    if (!ControlledEnemy)
-    {
-        if (GEngine)
-        {
-            GEngine->AddOnScreenDebugMessage(
-                1002,
-                0.1f,
-                FColor::Orange,
-                FString::Printf(
-                    TEXT("Pawn is not BaseEnemy: %s"),
-                    *ControlledPawn->GetClass()->GetName()
-                )
-            );
-        }
+		if (!IsValid(TargetPlayer))
+		{
+			if (ControlledEnemy->GetEnemyState() !=
+				EEnemyState::Idle)
+			{
+				ControlledEnemy->SetEnemyState(
+					EEnemyState::Idle
+				);
+			}
 
-        StopMovement();
-        return;
-    }
+			StopMovement();
+			return;
+		}
+	}
 
-    /*
-     * 3. 플레이어 확인
-     */
-    if (!TargetPlayer)
-    {
-        TargetPlayer = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	/*
+	 * 4. 적과 플레이어 사이의 거리 계산
+	 */
+	const float DistanceToPlayer = FVector::Dist(
+		ControlledEnemy->GetActorLocation(),
+		TargetPlayer->GetActorLocation()
+	);
 
-        if (!TargetPlayer)
-        {
-            if (ControlledEnemy->GetEnemyState() != EEnemyState::Idle)
-            {
-                ControlledEnemy->SetEnemyState(EEnemyState::Idle);
-            }
+	const float EnemyAttackRange =
+		ControlledEnemy->GetAttackRange();
 
-            if (GEngine)
-            {
-                GEngine->AddOnScreenDebugMessage(
-                    1003,
-                    0.1f,
-                    FColor::Yellow,
-                    TEXT("TargetPlayer NULL")
-                );
-            }
+	const float EnemyAttackCooldown =
+		ControlledEnemy->GetAttackCooldown();
 
-            StopMovement();
-            return;
-        }
-    }
+	/*
+	 * 5. 공격 범위 밖이면 플레이어 추적
+	 */
+	if (DistanceToPlayer > EnemyAttackRange)
+	{
+		if (ControlledEnemy->GetEnemyState() !=
+			EEnemyState::Chase)
+		{
+			ControlledEnemy->SetEnemyState(
+				EEnemyState::Chase
+			);
+		}
 
-    /*
-     * 4. 적과 플레이어 사이의 거리 계산
-     */
-    const float DistanceToPlayer = FVector::Dist(
-        ControlledEnemy->GetActorLocation(),
-        TargetPlayer->GetActorLocation()
-    );
+		const float CurrentTime =
+			GetWorld()->GetTimeSeconds();
 
-    const float EnemyAttackRange =
-        ControlledEnemy->GetAttackRange();
+		/*
+		 * 이미 이동 중이라면 새로운 MoveTo 요청을 보내지 않습니다.
+		 *
+		 * 첫 이동 요청이 실패했을 경우에는 0.5초마다
+		 * 다시 이동을 요청합니다.
+		 */
+		const bool bIsCurrentlyMoving =
+			GetMoveStatus() == EPathFollowingStatus::Moving;
 
-    const float EnemyAttackCooldown =
-        ControlledEnemy->GetAttackCooldown();
+		const bool bCanRetryMove =
+			CurrentTime - LastMoveRequestTime >= 0.5f;
 
-    /*
-     * 현재 거리와 공격 범위를 화면에 표시
-     */
-    if (GEngine)
-    {
-        GEngine->AddOnScreenDebugMessage(
-            2000,
-            0.1f,
-            FColor::Cyan,
-            FString::Printf(
-                TEXT("Distance: %.0f | AttackRange: %.0f"),
-                DistanceToPlayer,
-                EnemyAttackRange
-            )
-        );
-    }
+		if (!bIsCurrentlyMoving && bCanRetryMove)
+		{
+			LastMoveRequestTime = CurrentTime;
 
-    /*
-     * 5. 공격 범위 밖이라면 플레이어 추적
-     */
-    if (DistanceToPlayer > EnemyAttackRange)
-    {
-        if (ControlledEnemy->GetEnemyState() != EEnemyState::Chase)
-        {
-            ControlledEnemy->SetEnemyState(EEnemyState::Chase);
-        }
+			const float MoveAcceptanceRadius =
+				FMath::Max(
+					50.0f,
+					EnemyAttackRange * 0.4f
+				);
 
-        const float CurrentTime = GetWorld()->GetTimeSeconds();
+			MoveToActor(
+				TargetPlayer,
+				MoveAcceptanceRadius
+			);
+		}
+	}
+	/*
+	 * 6. 공격 범위 안이면 이동을 멈추고 공격
+	 */
+	else
+	{
+		if (ControlledEnemy->GetEnemyState() !=
+			EEnemyState::Attack)
+		{
+			ControlledEnemy->SetEnemyState(
+				EEnemyState::Attack
+			);
+		}
 
-        /*
-         * 이동 중이 아니면 0.5초마다 이동을 다시 요청합니다.
-         *
-         * 적이 생성된 첫 프레임에 NavMesh에 안착하지 못해서
-         * 이동 요청이 실패해도 이후 자동으로 다시 시도합니다.
-         */
-        const bool bIsCurrentlyMoving =
-            GetMoveStatus() == EPathFollowingStatus::Moving;
+		StopMovement();
 
-        const bool bCanRetryMove =
-            CurrentTime - LastMoveRequestTime >= 0.5f;
+		const float CurrentTime =
+			GetWorld()->GetTimeSeconds();
 
-        if (!bIsCurrentlyMoving && bCanRetryMove)
-        {
-            LastMoveRequestTime = CurrentTime;
-
-            const float MoveAcceptanceRadius =
-                FMath::Max(50.0f, EnemyAttackRange * 0.4f);
-
-            const EPathFollowingRequestResult::Type MoveResult =
-                MoveToActor(
-                    TargetPlayer,
-                    MoveAcceptanceRadius
-                );
-
-            FString MoveResultText;
-            FColor MoveResultColor = FColor::White;
-
-            switch (MoveResult)
-            {
-            case EPathFollowingRequestResult::RequestSuccessful:
-                MoveResultText =
-                    TEXT("MoveTo: Request Successful");
-
-                MoveResultColor = FColor::Green;
-                break;
-
-            case EPathFollowingRequestResult::AlreadyAtGoal:
-                MoveResultText =
-                    TEXT("MoveTo: Already At Goal");
-
-                MoveResultColor = FColor::Yellow;
-                break;
-
-            case EPathFollowingRequestResult::Failed:
-            default:
-                MoveResultText =
-                    TEXT("MoveTo: FAILED - Retrying");
-
-                MoveResultColor = FColor::Red;
-                break;
-            }
-
-            if (GEngine)
-            {
-                GEngine->AddOnScreenDebugMessage(
-                    2001,
-                    0.5f,
-                    MoveResultColor,
-                    MoveResultText
-                );
-            }
-        }
-    }
-    /*
-     * 6. 공격 범위 안이라면 이동을 멈추고 공격
-     */
-    else
-    {
-        if (ControlledEnemy->GetEnemyState() != EEnemyState::Attack)
-        {
-            ControlledEnemy->SetEnemyState(EEnemyState::Attack);
-        }
-
-        StopMovement();
-
-        const float CurrentTime =
-            GetWorld()->GetTimeSeconds();
-
-        if (CurrentTime - LastAttackTime >= EnemyAttackCooldown)
-        {
-            ControlledEnemy->AttackTarget(TargetPlayer);
-            LastAttackTime = CurrentTime;
-        }
-    }
+		if (CurrentTime - LastAttackTime >=
+			EnemyAttackCooldown)
+		{
+			ControlledEnemy->AttackTarget(TargetPlayer);
+			LastAttackTime = CurrentTime;
+		}
+	}
 }
