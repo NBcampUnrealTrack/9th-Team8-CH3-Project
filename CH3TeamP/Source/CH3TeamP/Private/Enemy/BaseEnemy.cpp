@@ -1,16 +1,18 @@
 #include "Enemy/BaseEnemy.h"
 #include "Components/HealthComponent.h"
-#include "Components/CapsuleComponent.h" // 추가: 캡슐 충돌 끄기 위해 필요
+#include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
+#include "Kismet/GameplayStatics.h" // 추가
+#include "CH3TeamProjectGameMode.h" // 추가
+#include "Characters/Player/PlayerCharacter.h"
 
 ABaseEnemy::ABaseEnemy()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	// HealthComponent를 Enemy가 직접 보유하도록 생성
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 }
 
@@ -18,8 +20,10 @@ void ABaseEnemy::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// 블루프린트에서 설정한 이동 속도를 실제 CharacterMovement에 적용
-	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed;
+	if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
+	{
+		MovementComponent->MaxWalkSpeed = MoveSpeed;
+	}
 }
 
 void ABaseEnemy::ApplyHitSlow()
@@ -29,7 +33,13 @@ void ABaseEnemy::ApplyHitSlow()
 		return;
 	}
 
-	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed * HitSlowMultiplier;
+	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+	if (!MovementComponent)
+	{
+		return;
+	}
+
+	MovementComponent->MaxWalkSpeed = MoveSpeed * HitSlowMultiplier;
 
 	GetWorldTimerManager().ClearTimer(HitSlowTimerHandle);
 	GetWorldTimerManager().SetTimer(
@@ -48,61 +58,48 @@ void ABaseEnemy::ResetMoveSpeed()
 		return;
 	}
 
-	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed;
+	if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
+	{
+		MovementComponent->MaxWalkSpeed = MoveSpeed;
+	}
 }
 
 void ABaseEnemy::TakeEnemyDamage(int32 DamageAmount)
 {
-	if (GEngine)
-	{
-		GEngine->AddOnScreenDebugMessage(
-			-1,
-			1.0f,
-			FColor::Yellow,
-			TEXT("TakeEnemyDamage Called")
-		);
-	}
-
-	// 이미 죽었거나 HealthComponent가 없으면 데미지 무시
-	if (!HealthComponent || HealthComponent->bIsDead)
+	if (!IsValid(HealthComponent) || HealthComponent->bIsDead)
 	{
 		return;
 	}
 
-	// 방어력을 적용한 최종 데미지
 	const int32 FinalDamage = FMath::Max(0, DamageAmount - static_cast<int32>(Defense));
 
 	HealthComponent->ApplyDamage(FinalDamage);
 
-	// 피격 시 슬로우 적용
-	ApplyHitSlow();
-
 	if (GEngine)
 	{
-		GEngine->AddOnScreenDebugMessage(
-			-1,
-			1.5f,
-			FColor::Cyan,
-			FString::Printf(
-				TEXT("Damage: %d / Final: %d / HP: %d"),
-				DamageAmount,
-				FinalDamage,
-				HealthComponent->CurrentHP
-			)
+		const FString DebugText = FString::Printf(
+			TEXT("Enemy HP: %d / %d, Damage: %d"),
+			HealthComponent->CurrentHP,
+			HealthComponent->MaxHp,
+			FinalDamage
 		);
+		GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, DebugText);
 	}
 
-	// ApplyDamage는 HP만 깎고 bIsDead를 true로 만들지 않으므로 여기서 직접 처리
+	// HealthComponent::ApplyDamage는 HP만 깎고 bIsDead는 자동으로 true가 되지 않으므로 직접 체크
 	if (HealthComponent->CurrentHP <= 0)
 	{
 		HealthComponent->MarkDead();
 		Die();
+		return;
 	}
+
+	ApplyHitSlow();
 }
 
 void ABaseEnemy::Attack()
 {
-	if (!HealthComponent || HealthComponent->bIsDead)
+	if (!IsValid(HealthComponent) || HealthComponent->bIsDead)
 	{
 		return;
 	}
@@ -117,7 +114,7 @@ void ABaseEnemy::Attack()
 
 void ABaseEnemy::AttackTarget(AActor* Target)
 {
-	if (!HealthComponent || HealthComponent->bIsDead || !Target)
+	if (!IsValid(HealthComponent) || HealthComponent->bIsDead || !IsValid(Target))
 	{
 		return;
 	}
@@ -125,7 +122,7 @@ void ABaseEnemy::AttackTarget(AActor* Target)
 	Attack();
 
 	UHealthComponent* TargetHealth = Target->FindComponentByClass<UHealthComponent>();
-	if (TargetHealth)
+	if (IsValid(TargetHealth))
 	{
 		TargetHealth->ApplyDamage(AttackDamage);
 	}
@@ -133,31 +130,55 @@ void ABaseEnemy::AttackTarget(AActor* Target)
 
 void ABaseEnemy::Die()
 {
-	// HealthComponent가 없거나 아직 죽은 상태가 아니면 사망 처리하지 않음
 	if (!HealthComponent || !HealthComponent->bIsDead)
 	{
 		return;
 	}
 
-	// AnimBP에서 Death 상태로 넘어갈 수 있도록 EnemyState 변경
 	SetEnemyState(EEnemyState::Dead);
 
 	// 죽은 뒤 더 이상 이동하지 않도록 처리
-	GetCharacterMovement()->DisableMovement();
+	if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
+	{
+		MovementComponent->DisableMovement();
+	}
 
 	// 죽은 뒤 플레이어나 총알과 계속 충돌하지 않도록 캡슐 충돌 제거
-	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	if (UCapsuleComponent* EnemyCapsule = GetCapsuleComponent())
+	{
+		EnemyCapsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
 
-	// 혹시 AI가 계속 MoveTo/Attack을 시도하지 않도록 컨트롤러 분리
+	// 추가: 게임모드에 처치 통지
+	// 킬카운트, 킬피드, 미니맵 적 개체 표시 갱신에 사용됨
+	if (ACH3TeamProjectGameMode* GM = Cast<ACH3TeamProjectGameMode>(UGameplayStatics::GetGameMode(this)))
+	{
+		GM->NotifyEnemyKilled(MyEnemyType, GetController());
+	}
+
+	// WaveManager에도 사망 통지
+	OnEnemyDied.Broadcast(this);
+
+	// 플레이어에게 경험치 즉시 지급
+	APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(
+		UGameplayStatics::GetPlayerCharacter(GetWorld(), 0)
+	);
+
+	if (PlayerCharacter)
+	{
+		PlayerCharacter->AddEXP(ExpReward);
+	}
+
+	// AI 이동/공격 중단
 	DetachFromControllerPendingDestroy();
+
+	// 시체가 일정 시간 뒤 사라지게 처리
+	SetLifeSpan(2.0f);
 
 	if (GEngine)
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Blue, TEXT("Enemy Dead"));
 	}
-
-	// Death 애니메이션이 보일 시간을 준 뒤 액터 삭제
-	SetLifeSpan(2.0f);
 }
 
 void ABaseEnemy::SetEnemyState(EEnemyState NewState)
