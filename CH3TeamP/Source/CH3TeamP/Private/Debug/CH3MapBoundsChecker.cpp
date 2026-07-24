@@ -32,13 +32,5 @@ void ACH3MapBoundsChecker::BeginPlay()
 			CombinedBounds += FBox(Origin - BoxExtent, Origin + BoxExtent);
 		}
 	}
-
-	// 결과를 화면에 30초간 크게 출력
-	if (GEngine)
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 30.f, FColor::Green,
-			FString::Printf(TEXT("Map Min: %s"), *CombinedBounds.Min.ToString()));
-		GEngine->AddOnScreenDebugMessage(-1, 30.f, FColor::Green,
-			FString::Printf(TEXT("Map Max: %s"), *CombinedBounds.Max.ToString()));
-	}
+	
 }

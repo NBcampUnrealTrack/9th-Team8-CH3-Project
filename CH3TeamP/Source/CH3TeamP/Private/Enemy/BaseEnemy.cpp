@@ -83,7 +83,6 @@ void ABaseEnemy::TakeEnemyDamage(int32 DamageAmount)
 			HealthComponent->MaxHp,
 			FinalDamage
 		);
-		GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, DebugText);
 	}
 
 	// HealthComponent::ApplyDamage는 HP만 깎고 bIsDead는 자동으로 true가 되지 않으므로 직접 체크
@@ -105,11 +104,7 @@ void ABaseEnemy::Attack()
 	}
 
 	SetEnemyState(EEnemyState::Attack);
-
-	if (GEngine)
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("Enemy Attack"));
-	}
+	
 }
 
 void ABaseEnemy::AttackTarget(AActor* Target)
@@ -174,11 +169,7 @@ void ABaseEnemy::Die()
 
 	// 시체가 일정 시간 뒤 사라지게 처리
 	SetLifeSpan(2.0f);
-
-	if (GEngine)
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Blue, TEXT("Enemy Dead"));
-	}
+	
 }
 
 void ABaseEnemy::SetEnemyState(EEnemyState NewState)

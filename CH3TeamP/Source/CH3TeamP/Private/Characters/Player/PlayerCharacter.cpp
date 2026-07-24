@@ -230,10 +230,6 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 			EIC->BindAction(PlayerInputConfig->AimAction, ETriggerEvent::Started,this, &APlayerCharacter::ToggleAim);
 		if (PlayerInputConfig->ReloadAction)
 			EIC->BindAction(PlayerInputConfig->ReloadAction, ETriggerEvent::Started, this, &APlayerCharacter::Reload);
-		if (PlayerInputConfig->TestDamageAction)
-			EIC->BindAction(PlayerInputConfig->TestDamageAction, ETriggerEvent::Started, this, &APlayerCharacter::InputActionTestDamage);
-		if (PlayerInputConfig->TestDeathAction)
-			EIC->BindAction(PlayerInputConfig->TestDeathAction, ETriggerEvent::Started, this, &APlayerCharacter::InputActionTestDeath);
 		
 	}
 }
@@ -401,7 +397,6 @@ void APlayerCharacter::EndHit()
 		UpdateMoveSpeed();
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("Recover"));
 }
 
 void APlayerCharacter::TakeRipleGun()
@@ -537,8 +532,7 @@ void APlayerCharacter::FinishReload()
 	
 	CurrentAmmoCount = MaxAmmo;
 	bIsReloading = false;
-
-	UE_LOG(LogTemp, Warning, TEXT("Reload Finish"));
+	
 }
 
 void APlayerCharacter::OnDamage(int32 Amount)
@@ -614,17 +608,6 @@ void APlayerCharacter::OnDeathAnimation()
 	// 3초 후 제거
 	SetLifeSpan(3.f);
 }
-
-void APlayerCharacter::InputActionTestDamage(const FInputActionValue& Value)
-{
-	OnDamage(30);
-}
-
-void APlayerCharacter::InputActionTestDeath(const FInputActionValue& Value)
-{
-	OnDamage(9999);
-}
-
 
 void APlayerCharacter::FireNormal()
 {

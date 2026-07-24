@@ -20,18 +20,7 @@ void AEnemyAIController::BeginPlay()
 
     // 싱글 플레이 기준 0번 플레이어를 추적 대상으로 저장
     TargetPlayer = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-
-    if (GEngine)
-    {
-        GEngine->AddOnScreenDebugMessage(
-            -1,
-            3.0f,
-            TargetPlayer ? FColor::Green : FColor::Red,
-            TargetPlayer
-                ? TEXT("TargetPlayer OK")
-                : TEXT("TargetPlayer NULL")
-        );
-    }
+    
 }
 
 

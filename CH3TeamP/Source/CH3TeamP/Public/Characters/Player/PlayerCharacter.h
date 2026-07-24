@@ -191,17 +191,9 @@ protected:
 
 	float LastLandedTime = -10.f;
 	
-	UPROPERTY(EditAnywhere, Category="Input|Actions")
-	class UInputAction*  TestDamageAction;
-
-	UPROPERTY(EditAnywhere, Category="Input|Actions")
-	class UInputAction*  TestDeathAction;
 	
 	void OnFireAnimation();
 	void OnHitAnimation();
-
-	void InputActionTestDamage(const struct FInputActionValue& Value);
-	void InputActionTestDeath(const struct FInputActionValue& Value);
 	
 	// --- 캐릭터 전투 및 스탯 변수 ---
 	UPROPERTY(EditAnywhere, Category="Weapon")
