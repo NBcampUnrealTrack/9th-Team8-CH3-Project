@@ -81,7 +81,7 @@ void ACH3HUD::BeginPlay()
 			// [가 LeftBracket이었구나.
 			// 여기는 일부러 bExecuteWhenPaused를 안 킴.
 			// 카드가 이미 떠서 일시정지된 동안 [을 또 눌러 중복 요청되는 걸 입력 단계에서부터 차단. (게임모드에도 자체 가드가 있어서 이중 안전)
-	//	InputComponent->BindKey(EKeys::LeftBracket, IE_Pressed, this, &ACH3HUD::DebugTriggerLevelUp);
+		InputComponent->BindKey(EKeys::LeftBracket, IE_Pressed, this, &ACH3HUD::DebugTriggerLevelUp);
 		
 		
 
@@ -282,7 +282,7 @@ void ACH3HUD::ToggleUpgradeInventory()
 	}
 }
 
-/*
+
 	//------------이 아래는 디버그용.-------------------------
 void ACH3HUD::DebugTriggerLevelUp()
 {
@@ -299,4 +299,3 @@ void ACH3HUD::DebugTriggerLevelUp()
 	}
 }
 
-*/
